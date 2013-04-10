@@ -55,8 +55,7 @@ public class NearbyStopsFragment extends ListFragment {
 	public void onActivityCreated(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 
-		mAdapter = new ArrayAdapter<StopPrediction>(getActivity(),
-				android.R.layout.simple_list_item_1);
+		mAdapter = new StopPredictionAdapter(getActivity());
 		
 		setListAdapter(mAdapter);
 	}
@@ -85,6 +84,8 @@ public class NearbyStopsFragment extends ListFragment {
 				service.removeNearbyStopPredictionsByRouteListener(mPredictionListener);
 			}
 		});
-		mServiceConnector.unbind(getActivity());
+		
+		// FIXME: Don't comment this out
+		//mServiceConnector.unbind(getActivity());
 	}
 }

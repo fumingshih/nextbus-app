@@ -40,38 +40,27 @@ public class NextBusAPI {
 //	}
 
 	public static class Route {
-		String title;
-		String direction;
+		public String title;
+		public String direction;
 	}
 
 	public static class Stop {
-		String title;
+		public String title;
 		double latitude;
 		double longitude;
 		String tag;
 		String routeTag;
+		public float distance;
 	}
 
 	public static class StopPrediction {
-		Date arrival;
-		public String stopTitle;
-		public Route route;
-		public Stop stop;
-
-		@Override
-		public String toString() {
-			return stopTitle;
-		}
-	}
-	
-	public static class RouteStopPredictions {
 		public Route route;
 		public Stop stop;
 		public List<Prediction> predictions;
 	}
 	
 	public static class Prediction {
-		
+		public Date arrival;
 	}
 
 	private static class Urls {
@@ -170,7 +159,8 @@ public class NextBusAPI {
 				// p.seconds = Integer.parseInt(predictionElement
 				// .attributeValue("seconds"));
 				// p.routeTitle = routeTitle;
-				p.stopTitle = stopTitle;
+				p.stop = new Stop();
+				p.stop.title = stopTitle;
 				predictions.add(p);
 			}
 

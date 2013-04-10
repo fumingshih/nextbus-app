@@ -1,13 +1,14 @@
 package com.danielstiner.cyride;
 
 import java.net.MalformedURLException;
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
-import java.util.concurrent.ExecutionException;
 
 import org.dom4j.DocumentException;
 
+import android.app.AlarmManager;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -20,6 +21,7 @@ import android.location.LocationManager;
 import android.os.AsyncTask;
 import android.os.Binder;
 import android.os.IBinder;
+import android.os.SystemClock;
 import android.widget.Toast;
 
 import com.danielstiner.cyride.util.Callback;
@@ -27,9 +29,11 @@ import com.danielstiner.cyride.util.CallbackManager;
 import com.danielstiner.cyride.util.Constants;
 import com.danielstiner.cyride.util.LocationUtil;
 import com.danielstiner.cyride.util.NextBusAPI;
+import com.danielstiner.cyride.util.NextBusAPI.Prediction;
 import com.danielstiner.cyride.util.NextBusAPI.Route;
 import com.danielstiner.cyride.util.NextBusAPI.Stop;
 import com.danielstiner.cyride.util.NextBusAPI.StopPrediction;
+import com.danielstiner.cyride.util.TextFormat;
 
 public class LocalService extends android.app.Service implements ILocalService {
 
@@ -95,7 +99,14 @@ public class LocalService extends android.app.Service implements ILocalService {
 	static {
 		LinkedList<StopPrediction> p = new LinkedList<StopPrediction>();
 		StopPrediction s = new StopPrediction();
-		s.stopTitle = "A Stop";
+		s.route = new Route();
+		s.route.title = "NX-N Express";
+		s.route.direction = "Outbound to Balboa Park Station";
+		s.stop = new Stop();
+		s.stop.title = "San Jose Ave & Mt Vernon Ave";
+		s.predictions = new LinkedList<NextBusAPI.Prediction>();
+		s.predictions.add(new Prediction());
+		s.predictions.get(0).arrival = new Date(new Date().getTime() + 100000);
 		p.add(s);
 		DEFAULT_PREDICTION_DATA = p;
 	}
@@ -107,6 +118,7 @@ public class LocalService extends android.app.Service implements ILocalService {
 			LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
 			Location location = LocationUtil.getBestCurrentLocation(lm);
 
+			// FIXME: Return data for testing
 			if (location != null)
 				return DEFAULT_PREDICTION_DATA;
 
@@ -141,6 +153,8 @@ public class LocalService extends android.app.Service implements ILocalService {
 
 	private final static int NOTIFICATION = R.string.local_service_started;
 
+	private static final int UPDATE_FREQUENCY_SEC = 1;
+
 	/**
 	 * Call at most once per context
 	 * 
@@ -161,6 +175,10 @@ public class LocalService extends android.app.Service implements ILocalService {
 
 	private final IBinder mBinder = new LocalBinder();
 
+	private boolean mRepeatingAlarm;
+
+	private Notification mNotification;
+
 	@Override
 	public IBinder onBind(Intent intent) {
 		return mBinder;
@@ -171,6 +189,8 @@ public class LocalService extends android.app.Service implements ILocalService {
 		super.onCreate();
 
 		mNM = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+
+		startRepeatingAlarm();
 
 		showNotification();
 	}
@@ -191,39 +211,76 @@ public class LocalService extends android.app.Service implements ILocalService {
 		super.onStartCommand(intent, flags, startId);
 
 		// TODO: Parse intent, either a start service or a display bus
+		showNotification();
 
 		return START_STICKY;
 	}
 
-	protected void registerLocalServiceConnection(
+	private void registerLocalServiceConnection(
 			ServiceConnection serviceConnection) {
 		// TODO Auto-generated method stub
 
+	}
+
+	private void startRepeatingAlarm() {
+		if (mRepeatingAlarm)
+			return;
+		mRepeatingAlarm = true;
+
+		AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+
+		PendingIntent alarmIntent = alarmIntent();
+
+		long timeToRefresh = SystemClock.elapsedRealtime()
+				+ UPDATE_FREQUENCY_SEC * 1000;
+		alarmManager.setRepeating(AlarmManager.ELAPSED_REALTIME, timeToRefresh,
+				UPDATE_FREQUENCY_SEC * 1000, alarmIntent);
+	}
+
+	protected void cancelRepeatingAlarm() {
+		PendingIntent alarmIntent = alarmIntent();
+
+		AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+		alarmManager.cancel(alarmIntent);
+		mRepeatingAlarm = false;
+	}
+
+	// method to construct the alarm intent
+	private PendingIntent alarmIntent() {
+		return PendingIntent.getService(this, 0, new Intent(this,
+				LocalService.class), PendingIntent.FLAG_UPDATE_CURRENT);
 	}
 
 	private void showNotification() {
 		// In this sample, we'll use the same text for the ticker and the
 		// expanded notification
 		CharSequence text = getText(R.string.local_service_started);
-		
-		if(!mNotificationStops.isEmpty())
-			text = mNotificationStops.get(0).stopTitle;
+
+		if (!mNotificationStops.isEmpty())
+			text = TextFormat.toString(mNotificationStops.get(0).route)
+					+ "   "
+					+ TextFormat
+							.toString(mNotificationStops.get(0).predictions);
 
 		// Set the icon, scrolling text and timestamp
-		Notification notification = new Notification(R.drawable.ic_launcher,
-				text, System.currentTimeMillis());
+		if (mNotification == null) {
+			mNotification = new Notification(R.drawable.ic_launcher, text,
+					System.currentTimeMillis());
+
+		}
 
 		// The PendingIntent to launch our activity if the user selects this
 		// notification
 		PendingIntent contentIntent = PendingIntent.getActivity(this, 0,
-				new Intent(this, NearbyStopsFragment.class), 0);
+				new Intent(this, MainActivity.class),
+				PendingIntent.FLAG_UPDATE_CURRENT);
 
 		// Set the info for the views that show in the notification panel.
-		notification.setLatestEventInfo(this,
+		mNotification.setLatestEventInfo(this,
 				getText(R.string.local_service_started), text, contentIntent);
 
 		// Send the notification.
-		mNM.notify(NOTIFICATION, notification);
+		mNM.notify(NOTIFICATION, mNotification);
 	}
 
 	@Override
