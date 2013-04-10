@@ -8,5 +8,9 @@
     <string name="title_activity_nearby_stops">NearbyStops</string>
     <string name="local_service_started">Serive started</string>
     <string name="local_service_stopped">Service stopped</string>
+    <string name="title_activity_main">MainActivity</string>
+    <string name="title_section1">Section 1</string>
+    <string name="title_section2">Section 2</string>
+    <string name="title_section3">Section 3</string>
 
 </resources>

@@ -54,13 +54,24 @@ public class NextBusAPI {
 
 	public static class StopPrediction {
 		Date arrival;
-		String stopTitle;
-		Stop stop;
+		public String stopTitle;
+		public Route route;
+		public Stop stop;
 
 		@Override
 		public String toString() {
 			return stopTitle;
 		}
+	}
+	
+	public static class RouteStopPredictions {
+		public Route route;
+		public Stop stop;
+		public List<Prediction> predictions;
+	}
+	
+	public static class Prediction {
+		
 	}
 
 	private static class Urls {

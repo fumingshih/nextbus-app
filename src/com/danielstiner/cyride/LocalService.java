@@ -23,24 +23,15 @@ import android.os.IBinder;
 import android.widget.Toast;
 
 import com.danielstiner.cyride.util.Callback;
-import com.danielstiner.cyride.util.CallbackHandler;
+import com.danielstiner.cyride.util.CallbackManager;
 import com.danielstiner.cyride.util.Constants;
 import com.danielstiner.cyride.util.LocationUtil;
 import com.danielstiner.cyride.util.NextBusAPI;
+import com.danielstiner.cyride.util.NextBusAPI.Route;
 import com.danielstiner.cyride.util.NextBusAPI.Stop;
 import com.danielstiner.cyride.util.NextBusAPI.StopPrediction;
 
-public class LocalService extends android.app.Service {
-
-	private static final String AGENCY = "cyride";
-
-	private final static int NOTIFICATION = R.string.local_service_started;
-
-	private final NextBusAPI mNextBusAPI = new NextBusAPI();
-
-	private NotificationManager mNM;
-
-	public CallbackHandler<List<StopPrediction>> StopPredictions = new CallbackHandler<List<StopPrediction>>();
+public class LocalService extends android.app.Service implements ILocalService {
 
 	public class LocalBinder extends Binder {
 		LocalService getService() {
@@ -48,20 +39,131 @@ public class LocalService extends android.app.Service {
 		}
 	}
 
+	public static class LocalServiceConnection {
+
+		private LocalService mBoundService;
+
+		private boolean mIsBound = false;
+		private Queue<Callback<ILocalService>> mScheduledCallbacks = new LinkedList<Callback<ILocalService>>();
+		private ServiceConnection mConnection = new ServiceConnection() {
+			public void onServiceConnected(ComponentName className,
+					IBinder service) {
+				mBoundService = ((LocalService.LocalBinder) service)
+						.getService();
+
+				while (!mScheduledCallbacks.isEmpty())
+					mScheduledCallbacks.poll().run(mBoundService);
+
+				mBoundService.registerLocalServiceConnection(this);
+			}
+
+			public void onServiceDisconnected(ComponentName className) {
+				mBoundService = null;
+			}
+		};
+
+		private LocalServiceConnection() {
+
+		}
+
+		public void bind(Context context) {
+			if (!mIsBound)
+				context.bindService(new Intent(context, LocalService.class),
+						mConnection, Context.BIND_AUTO_CREATE);
+			mIsBound = true;
+		}
+
+		public void schedule(Callback<ILocalService> callback) {
+			if (mIsBound && null != mBoundService) {
+				callback.run(mBoundService);
+			} else {
+				mScheduledCallbacks.add(callback);
+			}
+		}
+
+		public void unbind(Context context) {
+			if (mIsBound) {
+				// Detach our existing connection.
+				context.unbindService(mConnection);
+				mIsBound = false;
+			}
+		}
+
+	}
+
+	public static final List<StopPrediction> DEFAULT_PREDICTION_DATA;
+	static {
+		LinkedList<StopPrediction> p = new LinkedList<StopPrediction>();
+		StopPrediction s = new StopPrediction();
+		s.stopTitle = "A Stop";
+		p.add(s);
+		DEFAULT_PREDICTION_DATA = p;
+	}
+
+	private class UpdateNearbyTask extends
+			AsyncTask<Void, Void, List<StopPrediction>> {
+
+		protected List<StopPrediction> doInBackground(Void... stuff) {
+			LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+			Location location = LocationUtil.getBestCurrentLocation(lm);
+
+			if (location != null)
+				return DEFAULT_PREDICTION_DATA;
+
+			if (null == location) {
+				return DEFAULT_PREDICTION_DATA;
+			}
+
+			try {
+				List<Stop> stops = NextBusAPI.nearestStops(
+						mNextBusAPI.getStops(Constants.AGENCY), location,
+						Constants.MAX_STOPS);
+
+				return mNextBusAPI.getStopPredictions(stops, Constants.AGENCY);
+
+			} catch (MalformedURLException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (DocumentException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+
+			return new LinkedList<StopPrediction>();
+		}
+
+		protected void onPostExecute(List<StopPrediction> predictions) {
+			NearbyStopPredictionsByRouteListeners.runAll(predictions);
+		}
+	}
+
+	private static final String AGENCY = "cyride";
+
+	private final static int NOTIFICATION = R.string.local_service_started;
+
+	/**
+	 * Call at most once per context
+	 * 
+	 * @param context
+	 * @return
+	 */
+	public static LocalServiceConnection createConnection() {
+		return new LocalServiceConnection();
+	}
+
+	private final List<StopPrediction> mNotificationStops = new LinkedList<StopPrediction>();
+
+	private final NextBusAPI mNextBusAPI = new NextBusAPI();
+
+	private NotificationManager mNM;
+
+	private CallbackManager<List<StopPrediction>> NearbyStopPredictionsByRouteListeners = new CallbackManager<List<StopPrediction>>();
+
 	private final IBinder mBinder = new LocalBinder();
 
 	@Override
 	public IBinder onBind(Intent intent) {
 		return mBinder;
-	}
-
-	@Override
-	public int onStartCommand(Intent intent, int flags, int startId) {
-		super.onStartCommand(intent, flags, startId);
-
-		// TODO: Parse intent, either a start service or a display bus
-
-		return START_STICKY;
 	}
 
 	@Override
@@ -84,15 +186,28 @@ public class LocalService extends android.app.Service {
 				.show();
 	}
 
-	private Location getGPS() {
-		LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-		return LocationUtil.getBestCurrentLocation(lm);
+	@Override
+	public int onStartCommand(Intent intent, int flags, int startId) {
+		super.onStartCommand(intent, flags, startId);
+
+		// TODO: Parse intent, either a start service or a display bus
+
+		return START_STICKY;
+	}
+
+	protected void registerLocalServiceConnection(
+			ServiceConnection serviceConnection) {
+		// TODO Auto-generated method stub
+
 	}
 
 	private void showNotification() {
 		// In this sample, we'll use the same text for the ticker and the
 		// expanded notification
 		CharSequence text = getText(R.string.local_service_started);
+		
+		if(!mNotificationStops.isEmpty())
+			text = mNotificationStops.get(0).stopTitle;
 
 		// Set the icon, scrolling text and timestamp
 		Notification notification = new Notification(R.drawable.ic_launcher,
@@ -101,7 +216,7 @@ public class LocalService extends android.app.Service {
 		// The PendingIntent to launch our activity if the user selects this
 		// notification
 		PendingIntent contentIntent = PendingIntent.getActivity(this, 0,
-				new Intent(this, NearbyStops.class), 0);
+				new Intent(this, NearbyStopsFragment.class), 0);
 
 		// Set the info for the views that show in the notification panel.
 		notification.setLatestEventInfo(this,
@@ -111,140 +226,28 @@ public class LocalService extends android.app.Service {
 		mNM.notify(NOTIFICATION, notification);
 	}
 
-	void updatePredictions() {
+	@Override
+	public void showNotification(StopPrediction prediction) {
+		mNotificationStops.clear();
+		mNotificationStops.add(prediction);
+		this.showNotification();
+	}
+
+	@Override
+	public void addNearbyStopPredictionsByRouteListener(
+			StopPredictionsListener predictionListener) {
+		NearbyStopPredictionsByRouteListeners.addListener(predictionListener);
+	}
+
+	@Override
+	public void removeNearbyStopPredictionsByRouteListener(
+			StopPredictionsListener predictionListener) {
+		NearbyStopPredictionsByRouteListeners
+				.removeListener(predictionListener);
+	}
+
+	@Override
+	public void updateNearbyStopPredictionsByRoute() {
 		new UpdateNearbyTask().execute();
 	}
-
-	private class UpdateNearbyTask extends
-			AsyncTask<Void, Void, List<StopPrediction>> {
-
-		protected List<StopPrediction> doInBackground(Void... stuff) {
-			LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-			Location location = LocationUtil.getBestCurrentLocation(lm);
-			
-			if(null == location) {
-				return new LinkedList<StopPrediction>();
-			}
-
-			try {
-				List<Stop> stops = NextBusAPI.nearestStops(
-						mNextBusAPI.getStops(Constants.AGENCY), location,
-						Constants.MAX_STOPS);
-				
-				return mNextBusAPI.getStopPredictions(stops, Constants.AGENCY);
-				
-			} catch (MalformedURLException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} catch (DocumentException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-
-			return new LinkedList<StopPrediction>();
-		}
-
-		protected void onPostExecute(List<StopPrediction> predictions) {
-			StopPredictions.runAll(predictions);
-		}
-	}
-
-	/**
-	 * Call at most once per context
-	 * 
-	 * @param context
-	 * @return
-	 */
-	public static LocalServiceConnection createConnection() {
-		return new LocalServiceConnection();
-	}
-
-	public static class LocalServiceConnection {
-
-		private LocalServiceConnection() {
-
-		}
-
-		private LocalService mBoundService;
-		private boolean mIsBound = false;
-		private Queue<Callback<LocalService>> mScheduledCallbacks = new LinkedList<Callback<LocalService>>();
-
-		private ServiceConnection mConnection = new ServiceConnection() {
-			public void onServiceConnected(ComponentName className,
-					IBinder service) {
-				mBoundService = ((LocalService.LocalBinder) service)
-						.getService();
-
-				while (!mScheduledCallbacks.isEmpty())
-					mScheduledCallbacks.poll().run(mBoundService);
-
-				mBoundService.registerLocalServiceConnection(this);
-			}
-
-			public void onServiceDisconnected(ComponentName className) {
-				mBoundService = null;
-			}
-		};
-
-		public void bind(Context context) {
-			if (!mIsBound)
-				context.bindService(new Intent(context, LocalService.class),
-						mConnection, Context.BIND_AUTO_CREATE);
-			mIsBound = true;
-		}
-
-		public void unbind(Context context) {
-			if (mIsBound) {
-				// Detach our existing connection.
-				context.unbindService(mConnection);
-				mIsBound = false;
-			}
-		}
-
-		public void schedule(Callback<LocalService> callback) {
-			if (mIsBound && null != mBoundService) {
-				callback.run(mBoundService);
-			} else {
-				mScheduledCallbacks.add(callback);
-			}
-		}
-
-	}
-
-	protected void registerLocalServiceConnection(
-			ServiceConnection serviceConnection) {
-		// TODO Auto-generated method stub
-
-	}
-
-	// private void showNearbyNotification(){
-	// Intent notificationIntent = new Intent(ctx, YourClass.class);
-	// PendingIntent contentIntent = PendingIntent.getActivity(ctx,
-	// YOUR_PI_REQ_CODE, notificationIntent,
-	// PendingIntent.FLAG_CANCEL_CURRENT);
-	//
-	// NotificationManager nm = (NotificationManager) ctx
-	// .getSystemService(Context.NOTIFICATION_SERVICE);
-	//
-	// Resources res = ctx.getResources();
-	// Notification.Builder builder = new Notification.Builder(ctx);
-	//
-	// builder.setContentIntent(contentIntent)
-	// .setSmallIcon(R.drawable.arrow_down_float)
-	// .setLargeIcon(BitmapFactory.decodeResource(res,
-	// R.drawable.alert_dark_frame))
-	// .setTicker(res.getString(R.string.nearby_ticker))
-	// .setWhen(System.currentTimeMillis())
-	// .setAutoCancel(true)
-	// .setContentTitle(res.getString(R.string.your_notif_title))
-	// .setContentText(res.getString(R.string.your_notif_text));
-	// Notification n = builder.build();
-	//
-	// nm.notify(YOUR_NOTIF_ID, n);
-	// }
-
-	// "http://webservices.nextbus.com/service/publicXMLFeed?command=routeList&a=cyride"
-
-	// "http://webservices.nextbus.com/service/publicXMLFeed?command=routeConfig&a=cyride&terse=true"
-
 }

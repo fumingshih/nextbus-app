@@ -4,7 +4,7 @@ import java.util.LinkedList;
 import java.util.List;
 
 
-public class CallbackHandler<T> {
+public class CallbackManager<T> {
 	
 	private List<Callback<T>> listeners = new LinkedList<Callback<T>>();
 
