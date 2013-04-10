@@ -116,7 +116,7 @@ public class MainActivity extends FragmentActivity implements
 		@Override
 		public Fragment getItem(int position) {
 			
-			if(position == 1)
+			if(position == 0)
 				return new NearbyStopsFragment();
 			
 			// getItem is called to instantiate the fragment for the given page.
