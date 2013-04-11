@@ -1,6 +1,10 @@
 package com.danielstiner.cyride.util;
 
+import java.util.Comparator;
 import java.util.List;
+import java.util.PriorityQueue;
+
+import com.danielstiner.cyride.util.NextBusAPI.Stop;
 
 import android.location.Location;
 import android.location.LocationManager;
@@ -30,6 +34,13 @@ public class LocationUtil {
 		}
 
 		return bestLoc;
+	}
+
+	public static double distance(double lat, double lng, Location l) {
+
+		// Approximate
+		return Math.abs(l.getLatitude() - lat)
+				+ Math.abs(l.getLongitude() - lng);
 	}
 
 }

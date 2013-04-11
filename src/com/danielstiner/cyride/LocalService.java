@@ -1,6 +1,7 @@
 package com.danielstiner.cyride;
 
 import java.net.MalformedURLException;
+import java.util.Collection;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
@@ -29,6 +30,7 @@ import com.danielstiner.cyride.util.CallbackManager;
 import com.danielstiner.cyride.util.Constants;
 import com.danielstiner.cyride.util.LocationUtil;
 import com.danielstiner.cyride.util.NextBusAPI;
+import com.danielstiner.cyride.util.NextBusAPI.CachePolicy;
 import com.danielstiner.cyride.util.NextBusAPI.Prediction;
 import com.danielstiner.cyride.util.NextBusAPI.Route;
 import com.danielstiner.cyride.util.NextBusAPI.Stop;
@@ -99,39 +101,35 @@ public class LocalService extends android.app.Service implements ILocalService {
 	static {
 		LinkedList<StopPrediction> p = new LinkedList<StopPrediction>();
 		StopPrediction s = new StopPrediction();
-		s.route = new Route();
-		s.route.title = "NX-N Express";
+		s.route = new Route("NXN", "NX-N Express", 333);
 		s.route.direction = "Outbound to Balboa Park Station";
-		s.stop = new Stop();
-		s.stop.title = "San Jose Ave & Mt Vernon Ave";
-		s.predictions = new LinkedList<NextBusAPI.Prediction>();
-		s.predictions.add(new Prediction());
-		s.predictions.get(0).arrival = new Date(new Date().getTime() + 100000);
+		s.stop = new Stop("San Jose Ave & Mt Vernon Ave");
+		s.predictions.add(new Prediction(
+				new Date(new Date().getTime() + 100000)));
 		p.add(s);
 		DEFAULT_PREDICTION_DATA = p;
 	}
 
 	private class UpdateNearbyTask extends
-			AsyncTask<Void, Void, List<StopPrediction>> {
+			AsyncTask<Void, Void, Collection<StopPrediction>> {
 
-		protected List<StopPrediction> doInBackground(Void... stuff) {
+		protected Collection<StopPrediction> doInBackground(Void... stuff) {
 			LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
 			Location location = LocationUtil.getBestCurrentLocation(lm);
 
-			// FIXME: Return data for testing
-			if (location != null)
-				return DEFAULT_PREDICTION_DATA;
+			// FIXME: Returning data temp for testing
+			// if (location != null)
+			// return DEFAULT_PREDICTION_DATA;
 
 			if (null == location) {
 				return DEFAULT_PREDICTION_DATA;
 			}
 
 			try {
-				List<Stop> stops = NextBusAPI.nearestStops(
-						mNextBusAPI.getStops(Constants.AGENCY), location,
-						Constants.MAX_STOPS);
+				Collection<Stop> stops = NextBusAPI.nearestStopPerRoute(
+						mNextBusAPI.getStops(), location);
 
-				return mNextBusAPI.getStopPredictions(stops, Constants.AGENCY);
+				return mNextBusAPI.getStopPredictions(stops);
 
 			} catch (MalformedURLException e) {
 				// TODO Auto-generated catch block
@@ -144,7 +142,7 @@ public class LocalService extends android.app.Service implements ILocalService {
 			return new LinkedList<StopPrediction>();
 		}
 
-		protected void onPostExecute(List<StopPrediction> predictions) {
+		protected void onPostExecute(Collection<StopPrediction> predictions) {
 			NearbyStopPredictionsByRouteListeners.runAll(predictions);
 		}
 	}
@@ -167,11 +165,32 @@ public class LocalService extends android.app.Service implements ILocalService {
 
 	private final List<StopPrediction> mNotificationStops = new LinkedList<StopPrediction>();
 
-	private final NextBusAPI mNextBusAPI = new NextBusAPI();
+	private final NextBusAPI mNextBusAPI = new NextBusAPI(Constants.AGENCY,
+			new NextBusAPI.CachePolicy() {
+
+				@Override
+				public boolean shouldUpdateStops(Date lastUpdate) {
+					return lastUpdate == null;
+				}
+
+				@Override
+				public boolean shouldUpdateStopPredictions(
+						StopPrediction stopPrediction) {
+					if (stopPrediction == null)
+						return true;
+
+					for (Prediction p : stopPrediction.predictions) {
+						if (new Date().after(p.arrival))
+							return true;
+					}
+
+					return false;
+				}
+			});
 
 	private NotificationManager mNM;
 
-	private CallbackManager<List<StopPrediction>> NearbyStopPredictionsByRouteListeners = new CallbackManager<List<StopPrediction>>();
+	private CallbackManager<Collection<StopPrediction>> NearbyStopPredictionsByRouteListeners = new CallbackManager<Collection<StopPrediction>>();
 
 	private final IBinder mBinder = new LocalBinder();
 

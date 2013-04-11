@@ -1,22 +1,21 @@
 package com.danielstiner.cyride;
 
-import java.util.List;
+import java.util.Collection;
+import java.util.Comparator;
 
 import android.app.Activity;
-import android.app.ListActivity;
+import android.content.Context;
 import android.os.Bundle;
+import android.os.Handler;
 import android.support.v4.app.ListFragment;
-import android.view.Menu;
 import android.view.View;
-import android.view.View.OnClickListener;
-import android.widget.AdapterView;
-import android.widget.AdapterView.OnItemClickListener;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
 
 import com.danielstiner.cyride.IPredictions.StopPredictionsListener;
 import com.danielstiner.cyride.LocalService.LocalServiceConnection;
 import com.danielstiner.cyride.util.Callback;
+import com.danielstiner.cyride.util.Constants;
 import com.danielstiner.cyride.util.NextBusAPI.StopPrediction;
 
 public class NearbyStopsFragment extends ListFragment {
@@ -25,24 +24,48 @@ public class NearbyStopsFragment extends ListFragment {
 			.createConnection();
 	private ArrayAdapter<StopPrediction> mAdapter;
 
+	private Handler mHandler;
+
 	private final StopPredictionsListener mPredictionListener = new StopPredictionsListener() {
 
 		@Override
-		public void run(List<StopPrediction> predictions) {
+		public void run(Collection<StopPrediction> predictions) {
 			mAdapter.clear();
 			for (StopPrediction sp : predictions) {
 				mAdapter.add(sp);
 			}
-			mAdapter.notifyDataSetChanged();
+			//mAdapter.notifyDataSetChanged();
+			
+			mAdapter.sort(new Comparator<StopPrediction>() {
+				@Override
+				public int compare(StopPrediction lhs, StopPrediction rhs) {
+					return lhs.stop.title.compareTo(rhs.stop.title);
+				}
+			});
 		}
 	};
-	
+
+	private final Runnable mViewUpdater = new Runnable() {
+		@Override
+		public void run() {
+			if (mAdapter != null)
+				mAdapter.notifyDataSetChanged();
+
+			mHandler.postDelayed(mViewUpdater, Constants.VIEW_UPDATE_INTERVAL);
+		}
+	};
+
+	public void onCreate(Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+		mHandler = new Handler();
+	};
+
 	@Override
 	public void onListItemClick(ListView l, View v, int position, long id) {
 		super.onListItemClick(l, v, position, id);
-		
+
 		final StopPrediction selected = mAdapter.getItem(position);
-		
+
 		mServiceConnector.schedule(new Callback<ILocalService>() {
 			@Override
 			public void run(ILocalService service) {
@@ -55,15 +78,40 @@ public class NearbyStopsFragment extends ListFragment {
 	public void onActivityCreated(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 
-		mAdapter = new StopPredictionAdapter(getActivity());
-		
+		mAdapter = buildAdapter(getActivity());
+
 		setListAdapter(mAdapter);
+
 	}
-	
+
+	public void onResume() {
+		super.onResume();
+		mViewUpdater.run();
+	};
+
+	public void onPause() {
+		super.onPause();
+		mHandler.removeCallbacks(mViewUpdater);
+	};
+
+	private ArrayAdapter<StopPrediction> buildAdapter(Context context) {
+		ArrayAdapter<StopPrediction> a = new StopPredictionAdapter(
+				getActivity());
+
+//		a.sort(new Comparator<StopPrediction>() {
+//			@Override
+//			public int compare(StopPrediction lhs, StopPrediction rhs) {
+//				return lhs.stop.title.compareTo(rhs.stop.title);
+//			}
+//		});
+
+		return a;
+	}
+
 	@Override
 	public void onAttach(Activity activity) {
 		super.onAttach(activity);
-		
+
 		mServiceConnector.bind(activity);
 		mServiceConnector.schedule(new Callback<ILocalService>() {
 			@Override
@@ -73,19 +121,17 @@ public class NearbyStopsFragment extends ListFragment {
 			}
 		});
 	}
-	
+
 	@Override
 	public void onDetach() {
 		super.onDetach();
-		
+
 		mServiceConnector.schedule(new Callback<ILocalService>() {
 			@Override
 			public void run(ILocalService service) {
 				service.removeNearbyStopPredictionsByRouteListener(mPredictionListener);
 			}
 		});
-		
-		// FIXME: Don't comment this out
-		//mServiceConnector.unbind(getActivity());
+		mServiceConnector.unbind(getActivity());
 	}
 }

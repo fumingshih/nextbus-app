@@ -1,13 +1,13 @@
 package com.danielstiner.cyride;
 
-import java.util.List;
+import java.util.Collection;
 
 import com.danielstiner.cyride.util.Callback;
 import com.danielstiner.cyride.util.NextBusAPI.StopPrediction;
 
 public interface IPredictions {
 
-	public interface StopPredictionsListener extends Callback<List<StopPrediction>> {
+	public interface StopPredictionsListener extends Callback<Collection<StopPrediction>> {
 	}
 
 	public abstract void addNearbyStopPredictionsByRouteListener(

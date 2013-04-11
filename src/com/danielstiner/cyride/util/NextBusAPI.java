@@ -3,75 +3,104 @@ package com.danielstiner.cyride.util;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.PriorityQueue;
-import java.util.concurrent.Callable;
-import java.util.concurrent.Future;
-import java.util.concurrent.FutureTask;
 
 import org.dom4j.Document;
 import org.dom4j.DocumentException;
 import org.dom4j.Element;
 import org.dom4j.io.SAXReader;
 
+import android.graphics.Color;
 import android.location.Location;
 
 public class NextBusAPI {
 
-	public List<Stop> getStops(final String agencyString)
-			throws MalformedURLException, DocumentException {
-		final URL u = Urls.getRouteConfigUrl(agencyString);
-		SAXReader reader = new SAXReader();
-		Document stops_document = reader.read(u);
-		return parseStops(stops_document);
+	private final String mAgency;
+	private CachePolicy mCachePolicy;
+	private Map<String, Route> mRoutes = new HashMap<String, NextBusAPI.Route>();
+	private Date mStopsLastUpdated;
+	private Collection<Stop> mStopsCache;
+	private Map<RouteStop, StopPrediction> mStopRoutePredictionsCache = new HashMap<NextBusAPI.RouteStop, NextBusAPI.StopPrediction>();
+
+	public NextBusAPI(String agency, CachePolicy cachingPolicy) {
+		this.mAgency = agency;
+		this.mCachePolicy = cachingPolicy;
 	}
 
-//	public Future<List<Stop>> getStopsFutures(final String agencyString) {
-//		return new FutureTask<List<Stop>>(new Callable<List<Stop>>() {
-//			@Override
-//			public List<Stop> call() throws Exception {
-//				return getStopsSync(agencyString);
-//			}
-//		});
-//	}
+	public interface CachePolicy {
+
+		boolean shouldUpdateStops(Date lastUpdate);
+
+		boolean shouldUpdateStopPredictions(StopPrediction c);
+
+	}
+
+	public static class Prediction {
+		public Prediction(Date arrival) {
+			this.arrival = arrival;
+		}
+
+		public Date arrival;
+	}
 
 	public static class Route {
-		public String title;
+		public Route(String tag, String title, int color) {
+			this.tag = tag;
+			this.title = title;
+			this.color = color;
+		}
+
+		public final int color;
+		public final String tag;
+		public final String title;
 		public String direction;
 	}
 
 	public static class Stop {
-		public String title;
+
+		public Stop(String title) {
+			this.title = title;
+		}
+
+		public final String title;
+
+		public final List<Route> routes = new LinkedList<NextBusAPI.Route>();
+
 		double latitude;
 		double longitude;
 		String tag;
 		String routeTag;
-		public float distance;
+	}
+
+	public static class RouteStop {
+		public final Route route;
+		public final Stop stop;
+
+		public RouteStop(Route r, Stop s) {
+			this.route = r;
+			this.stop = s;
+		}
 	}
 
 	public static class StopPrediction {
 		public Route route;
 		public Stop stop;
-		public List<Prediction> predictions;
-	}
-	
-	public static class Prediction {
-		public Date arrival;
+		public final List<Prediction> predictions = new LinkedList<Prediction>();
 	}
 
 	private static class Urls {
 
 		private static final String BASE_URL = "http://webservices.nextbus.com/service/publicXMLFeed";
-
-		private static URL getRouteConfigUrl(String agencyString)
-				throws MalformedURLException {
-			return new URL(BASE_URL + "?command=routeConfig&terse=true&a="
-					+ agencyString);
-		}
 
 		private static URL getMultiStopUrl(String agencyString,
 				String queryParameters) throws MalformedURLException {
@@ -79,105 +108,12 @@ public class NextBusAPI {
 					+ "?command=predictionsForMultiStops&terse=true&a="
 					+ agencyString + "&" + queryParameters);
 		}
-	}
 
-	public List<StopPrediction> getStopPredictions(final List<Stop> stops,
-			final String agencyString) throws MalformedURLException,
-			DocumentException {
-
-		StringBuilder queryParams = new StringBuilder();
-		for (Stop s : stops) {
-			queryParams.append("&stops=");
-			queryParams.append(s.routeTag);
-			queryParams.append("|");
-			queryParams.append(s.tag);
+		private static URL getRouteConfigUrl(String agencyString)
+				throws MalformedURLException {
+			return new URL(BASE_URL + "?command=routeConfig&terse=true&a="
+					+ agencyString);
 		}
-
-		final URL u = Urls.getMultiStopUrl(agencyString,
-				queryParams.substring(1));
-
-		SAXReader reader = new SAXReader();
-		Document predictions_document = reader.read(u);
-		return parsePredictions(predictions_document);
-	}
-
-	private static List<Stop> parseStops(Document stops_document) {
-
-		List<Stop> stops = new ArrayList<Stop>();
-
-		Element root = stops_document.getRootElement();
-
-		// iterate through child elements of root
-		for (Iterator<Element> i = root.elementIterator("route"); i.hasNext();) {
-			Element routeElement = i.next();
-
-			String routeTag = routeElement.attributeValue("tag");
-
-			for (Iterator<Element> j = routeElement.elementIterator("stop"); j
-					.hasNext();) {
-				Element stopElement = j.next();
-
-				Stop s = new Stop();
-				s.routeTag = routeTag;
-				s.tag = stopElement.attributeValue("tag");
-				s.latitude = Double.parseDouble(stopElement
-						.attributeValue("lat"));
-				s.longitude = Double.parseDouble(stopElement
-						.attributeValue("lon"));
-				s.title = stopElement.attributeValue("title");
-				stops.add(s);
-			}
-
-		}
-
-		return stops;
-
-	}
-
-	private static List<StopPrediction> parsePredictions(
-			Document predictions_document) {
-		List<StopPrediction> predictions = new ArrayList<StopPrediction>();
-
-		Element root = predictions_document.getRootElement();
-
-		// iterate through child elements of root
-		for (Iterator<Element> i = root.elementIterator("predictions"); i
-				.hasNext();) {
-			Element predictionsElement = i.next();
-
-			String routeTitle = predictionsElement.attributeValue("routeTitle");
-			String stopTitle = predictionsElement.attributeValue("stopTitle");
-
-			if (null == predictionsElement.element("direction"))
-				continue;
-
-			for (Iterator<Element> j = predictionsElement.element("direction")
-					.elementIterator("prediction"); j.hasNext();) {
-				Element predictionElement = j.next();
-
-				StopPrediction p = new StopPrediction();
-				// p.seconds = Integer.parseInt(predictionElement
-				// .attributeValue("seconds"));
-				// p.routeTitle = routeTitle;
-				p.stop = new Stop();
-				p.stop.title = stopTitle;
-				predictions.add(p);
-			}
-
-		}
-
-		return predictions;
-	}
-
-	public static FutureTask<List<Stop>> nearestStops(
-			final Future<List<Stop>> stops, final Location location,
-			final int maxStops) {
-		return new FutureTask<List<Stop>>(new Callable<List<Stop>>() {
-			@Override
-			public List<Stop> call() throws Exception {
-				return nearestStops(stops.get(), location, maxStops);
-			}
-		});
 	}
 
 	public static List<Stop> nearestStops(List<Stop> stops, Location location,
@@ -210,14 +146,194 @@ public class NextBusAPI {
 		return newStops;
 	}
 
-	public FutureTask<List<StopPrediction>> getStopPredictions(
-			final Future<List<Stop>> stops, final String agencyString) {
-		return new FutureTask<List<StopPrediction>>(
-				new Callable<List<StopPrediction>>() {
-					@Override
-					public List<StopPrediction> call() throws Exception {
-						return getStopPredictions(stops.get(), agencyString);
-					}
-				});
+	public static Collection<Stop> nearestStopPerRoute(Collection<Stop> stops,
+			Location l) {
+
+		final Map<Route, Stop> stopsByRoute = new HashMap<NextBusAPI.Route, NextBusAPI.Stop>();
+
+		for (Stop s : stops) {
+			// TODO: More advanced filtering based on how long it would take to
+			// walk to the stop from the user's current location
+
+			for (Route r : s.routes) {
+				Stop ss = stopsByRoute.get(r);
+				if (ss == null
+						|| LocationUtil.distance(s.latitude, s.longitude, l) < LocationUtil
+								.distance(ss.latitude, ss.longitude, l))
+					stopsByRoute.put(r, s);
+			}
+
+		}
+
+		return stopsByRoute.values();
+	}
+
+	private List<StopPrediction> parsePredictions(Document predictions_document) {
+		List<StopPrediction> predictions = new ArrayList<StopPrediction>();
+
+		Element root = predictions_document.getRootElement();
+
+		// iterate through child elements of root
+		for (Iterator<Element> i = root.elementIterator("predictions"); i
+				.hasNext();) {
+			Element predictionsElement = i.next();
+
+			String routeTag = predictionsElement.attributeValue("routeTag");
+			String routeTitle = predictionsElement.attributeValue("routeTitle");
+			String stopTitle = predictionsElement.attributeValue("stopTitle");
+
+			if (null == predictionsElement.element("direction"))
+				continue;
+
+			StopPrediction p = new StopPrediction();
+			p.stop = new Stop(stopTitle);
+			p.route = getRoute(routeTag, routeTitle, 0);
+
+			for (Iterator<Element> j = predictionsElement.element("direction")
+					.elementIterator("prediction"); j.hasNext();) {
+				Element predictionElement = j.next();
+
+				Date arrival = new Date();
+				arrival.setTime(Long.parseLong(predictionElement
+						.attributeValue("epochTime")));
+
+				p.predictions.add(new Prediction(arrival));
+
+			}
+
+			predictions.add(p);
+
+		}
+
+		return predictions;
+	}
+
+	private Collection<Stop> parseStops(Document stops_document) {
+
+		Collection<Stop> stops = new ArrayList<Stop>();
+
+		Element root = stops_document.getRootElement();
+
+		// iterate through child elements of root
+		for (Iterator<Element> i = root.elementIterator("route"); i.hasNext();) {
+			Element routeElement = i.next();
+
+			Route r = parseRouteElement(routeElement);
+
+			for (Iterator<Element> j = routeElement.elementIterator("stop"); j
+					.hasNext();) {
+				Element stopElement = j.next();
+
+				Stop s = new Stop(stopElement.attributeValue("title"));
+				s.tag = stopElement.attributeValue("tag");
+				s.latitude = Double.parseDouble(stopElement
+						.attributeValue("lat"));
+				s.longitude = Double.parseDouble(stopElement
+						.attributeValue("lon"));
+				s.routes.add(r);
+				stops.add(s);
+			}
+		}
+
+		return stops;
+	}
+
+	private Route parseRouteElement(Element routeElement) {
+		String routeTag = routeElement.attributeValue("tag");
+		String routeTitle = routeElement.attributeValue("title");
+		int routeColor = Color.parseColor("#"
+				+ routeElement.attributeValue("color"));
+		return getRoute(routeTag, routeTitle, routeColor);
+	}
+
+	private Route getRoute(String routeTag, String routeTitle, int routeColor) {
+		Route r = mRoutes.get(routeTag);
+		if (r == null) {
+			r = new Route(routeTag, routeTitle, routeColor);
+			mRoutes.put(routeTag, r);
+		}
+
+		return r;
+	}
+
+	public Collection<StopPrediction> getStopPredictions(
+			final Collection<Stop> stops) throws MalformedURLException,
+			DocumentException {
+
+		final Collection<StopPrediction> predictions = new ArrayList<NextBusAPI.StopPrediction>();
+
+		StringBuilder queryParams = new StringBuilder();
+		for (Stop s : stops) {
+			for (Route r : s.routes) {
+
+				StopPrediction c = getCachedPredictions(s, r);
+
+				if (mCachePolicy.shouldUpdateStopPredictions(c)) {
+					queryParams.append("&stops=");
+					queryParams.append(r.tag);
+					queryParams.append("|");
+					queryParams.append(s.tag);
+				} else {
+					predictions.add(c);
+				}
+			}
+		}
+
+		if (0 == queryParams.length())
+			return predictions;
+
+		final URL u = Urls.getMultiStopUrl(this.mAgency,
+				queryParams.substring(1));
+
+		SAXReader reader = new SAXReader();
+		Document predictions_document = reader.read(u);
+		
+		Collection<StopPrediction> newPredictions = parsePredictions(predictions_document);
+		
+		for(StopPrediction p : newPredictions) {
+			setCachedPredictions(p);
+		}
+		predictions.addAll(newPredictions);
+		
+		return predictions;
+	}
+
+	private StopPrediction getCachedPredictions(Stop s, Route r) {
+		return mStopRoutePredictionsCache.get(new RouteStop(r, s));
+	}
+
+	private void setCachedPredictions(StopPrediction p) {
+		mStopRoutePredictionsCache.put(new RouteStop(p.route, p.stop), p);
+	}
+
+	private void updateRouteConfig() {
+		mStopsLastUpdated = new Date();
+
+		URL u;
+		try {
+			u = Urls.getRouteConfigUrl(this.mAgency);
+
+			SAXReader reader = new SAXReader();
+			Document stops_document;
+			stops_document = reader.read(u);
+
+			this.mStopsCache = parseStops(stops_document);
+
+		} catch (DocumentException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (MalformedURLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+
+	public Collection<Stop> getStops() {
+
+		if (mCachePolicy.shouldUpdateStops(mStopsLastUpdated)) {
+			updateRouteConfig();
+		}
+
+		return this.mStopsCache;
 	}
 }
