@@ -1,4 +1,4 @@
-package com.danielstiner.cyride;
+package com.danielstiner.cyride.service;
 
 import java.util.Collection;
 

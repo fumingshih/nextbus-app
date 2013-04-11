@@ -1,4 +1,4 @@
-package com.danielstiner.cyride;
+package com.danielstiner.cyride.service;
 
 import java.net.MalformedURLException;
 import java.util.Collection;
@@ -25,6 +25,10 @@ import android.os.IBinder;
 import android.os.SystemClock;
 import android.widget.Toast;
 
+import com.danielstiner.cyride.MainActivity;
+import com.danielstiner.cyride.R;
+import com.danielstiner.cyride.R.drawable;
+import com.danielstiner.cyride.R.string;
 import com.danielstiner.cyride.util.Callback;
 import com.danielstiner.cyride.util.CallbackManager;
 import com.danielstiner.cyride.util.Constants;
