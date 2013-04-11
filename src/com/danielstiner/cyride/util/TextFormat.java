@@ -15,21 +15,20 @@ public class TextFormat {
 	}
 
 	public static CharSequence toString(List<Prediction> predictions) {
-		if(predictions == null)
+		if (predictions == null)
 			return null;
-		
+
 		StringBuilder sb = new StringBuilder();
-		for(Prediction p : predictions) {
+		for (Prediction p : predictions) {
 			sb.append(' ');
-			
-			long seconds = (p.arrival.getTime() - new Date().getTime())/1000;
-			
-			if(seconds <= 60)
-			{
+
+			long seconds = (p.arrival.getTime() - new Date().getTime()) / 1000;
+
+			if (seconds <= 60) {
 				sb.append(seconds);
 				sb.append('s');
 			} else {
-				sb.append(seconds/60);
+				sb.append((seconds + 59) / 60); // Round up
 				sb.append('m');
 			}
 		}
