@@ -34,19 +34,18 @@ public class ServiceConnector<ServiceInterface> {
 	private boolean mIsBound = false;
 	private Queue<Callback<ServiceInterface>> mScheduledCallbacks = new LinkedList<Callback<ServiceInterface>>();
 
-	private ServiceConnector() {
+	private Class<? extends Service> serviceClass;
 
-	}
-
-	private ServiceConnector(
+	private ServiceConnector(Class<? extends Service> serviceClass,
 			Functor1<IBinder, ServiceInterface> getServiceFromBinder) {
+		this.serviceClass = serviceClass;
 		this.mBoundServiceGetter = getServiceFromBinder;
 	}
 
 	public void bind(Context context) {
 		if (!mIsBound)
-			context.bindService(new Intent(context, LocalService.class),
-					mConnection, Context.BIND_AUTO_CREATE);
+			context.bindService(new Intent(context, serviceClass), mConnection,
+					Context.BIND_AUTO_CREATE);
 		mIsBound = true;
 	}
 
@@ -67,8 +66,10 @@ public class ServiceConnector<ServiceInterface> {
 	}
 
 	public static <ServiceInterface> ServiceConnector<ServiceInterface> createConnection(
+			Class<? extends Service> serviceClass,
 			Functor1<IBinder, ServiceInterface> getServiceFromBinder) {
-		return new ServiceConnector<ServiceInterface>(getServiceFromBinder);
+		return new ServiceConnector<ServiceInterface>(serviceClass,
+				getServiceFromBinder);
 	}
 
 }

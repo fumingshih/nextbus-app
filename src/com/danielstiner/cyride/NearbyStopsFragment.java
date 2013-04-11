@@ -13,8 +13,10 @@ import android.widget.ArrayAdapter;
 import android.widget.ListView;
 
 import com.danielstiner.cyride.service.ILocalService;
+import com.danielstiner.cyride.service.INotifications;
 import com.danielstiner.cyride.service.IPredictions.StopPredictionsListener;
 import com.danielstiner.cyride.service.LocalService;
+import com.danielstiner.cyride.service.NotificationService;
 import com.danielstiner.cyride.service.ServiceConnector;
 import com.danielstiner.cyride.util.Callback;
 import com.danielstiner.cyride.util.Constants;
@@ -33,8 +35,8 @@ public class NearbyStopsFragment extends ListFragment {
 			for (StopPrediction sp : predictions) {
 				mAdapter.add(sp);
 			}
-			//mAdapter.notifyDataSetChanged();
-			
+			// mAdapter.notifyDataSetChanged();
+
 			mAdapter.sort(new Comparator<StopPrediction>() {
 				@Override
 				public int compare(StopPrediction lhs, StopPrediction rhs) {
@@ -44,8 +46,11 @@ public class NearbyStopsFragment extends ListFragment {
 		}
 	};
 
-	private ServiceConnector<ILocalService> mServiceConnector = LocalService
+	private ServiceConnector<ILocalService> mPredictionsService = LocalService
 			.createConnection();
+	private ServiceConnector<INotifications> mNotificationService = NotificationService
+			.createConnection();
+
 	private final Runnable mViewUpdater = new Runnable() {
 		@Override
 		public void run() {
@@ -60,12 +65,12 @@ public class NearbyStopsFragment extends ListFragment {
 		ArrayAdapter<StopPrediction> a = new StopPredictionAdapter(
 				getActivity());
 
-//		a.sort(new Comparator<StopPrediction>() {
-//			@Override
-//			public int compare(StopPrediction lhs, StopPrediction rhs) {
-//				return lhs.stop.title.compareTo(rhs.stop.title);
-//			}
-//		});
+		// a.sort(new Comparator<StopPrediction>() {
+		// @Override
+		// public int compare(StopPrediction lhs, StopPrediction rhs) {
+		// return lhs.stop.title.compareTo(rhs.stop.title);
+		// }
+		// });
 
 		return a;
 	};
@@ -84,8 +89,9 @@ public class NearbyStopsFragment extends ListFragment {
 	public void onAttach(Activity activity) {
 		super.onAttach(activity);
 
-		mServiceConnector.bind(activity);
-		mServiceConnector.schedule(new Callback<ILocalService>() {
+		mPredictionsService.bind(activity);
+		mNotificationService.bind(activity);
+		mPredictionsService.schedule(new Callback<ILocalService>() {
 			@Override
 			public void run(ILocalService service) {
 				service.addNearbyStopPredictionsByRouteListener(mPredictionListener);
@@ -103,13 +109,14 @@ public class NearbyStopsFragment extends ListFragment {
 	public void onDetach() {
 		super.onDetach();
 
-		mServiceConnector.schedule(new Callback<ILocalService>() {
+		mPredictionsService.schedule(new Callback<ILocalService>() {
 			@Override
 			public void run(ILocalService service) {
 				service.removeNearbyStopPredictionsByRouteListener(mPredictionListener);
 			}
 		});
-		mServiceConnector.unbind(getActivity());
+		mPredictionsService.unbind(getActivity());
+		mNotificationService.unbind(getActivity());
 	};
 
 	@Override
@@ -118,9 +125,9 @@ public class NearbyStopsFragment extends ListFragment {
 
 		final StopPrediction selected = mAdapter.getItem(position);
 
-		mServiceConnector.schedule(new Callback<ILocalService>() {
+		mNotificationService.schedule(new Callback<INotifications>() {
 			@Override
-			public void run(ILocalService service) {
+			public void run(INotifications service) {
 				service.showNotification(selected);
 			}
 		});

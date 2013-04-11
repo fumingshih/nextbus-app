@@ -29,6 +29,7 @@ import com.danielstiner.cyride.MainActivity;
 import com.danielstiner.cyride.R;
 import com.danielstiner.cyride.R.drawable;
 import com.danielstiner.cyride.R.string;
+import com.danielstiner.cyride.service.IPredictions.StopPredictionsListener;
 import com.danielstiner.cyride.util.Callback;
 import com.danielstiner.cyride.util.CallbackManager;
 import com.danielstiner.cyride.util.Constants;
@@ -49,7 +50,12 @@ public class LocalService extends android.app.Service implements ILocalService {
 			return LocalService.this;
 		}
 	}
-
+	@Override
+	public void addNearbyStopPredictionsByRouteListener(
+			StopPredictionsListener predictionListener) {
+		NearbyStopPredictionsByRouteListeners.addListener(predictionListener);
+	}
+	
 	private class UpdateNearbyTask extends
 			AsyncTask<Void, Void, Collection<StopPrediction>> {
 
@@ -87,13 +93,7 @@ public class LocalService extends android.app.Service implements ILocalService {
 		}
 	}
 
-	private static final String AGENCY = "cyride";
-
 	public static final List<StopPrediction> DEFAULT_PREDICTION_DATA;
-
-	private final static int NOTIFICATION = R.string.local_service_started;
-
-	private static final int UPDATE_FREQUENCY_SEC = 1;
 
 	static {
 		LinkedList<StopPrediction> p = new LinkedList<StopPrediction>();
@@ -115,7 +115,7 @@ public class LocalService extends android.app.Service implements ILocalService {
 	 */
 	public static ServiceConnector<ILocalService> createConnection() {
 		return ServiceConnector
-				.createConnection(new Functor1<IBinder, ILocalService>() {
+				.createConnection(LocalService.class, new Functor1<IBinder, ILocalService>() {
 					@Override
 					public ILocalService apply(IBinder service) {
 						return ((LocalBinder) service).getService();
@@ -149,35 +149,7 @@ public class LocalService extends android.app.Service implements ILocalService {
 				}
 			});
 
-	private NotificationManager mNM;
-
-	private Notification mNotification;
-
-	private final List<StopPrediction> mNotificationStops = new LinkedList<StopPrediction>();
-
-	private boolean mRepeatingAlarm;
-
 	private CallbackManager<Collection<StopPrediction>> NearbyStopPredictionsByRouteListeners = new CallbackManager<Collection<StopPrediction>>();
-
-	@Override
-	public void addNearbyStopPredictionsByRouteListener(
-			StopPredictionsListener predictionListener) {
-		NearbyStopPredictionsByRouteListeners.addListener(predictionListener);
-	}
-
-	// method to construct the alarm intent
-	private PendingIntent alarmIntent() {
-		return PendingIntent.getService(this, 0, new Intent(this,
-				LocalService.class), PendingIntent.FLAG_UPDATE_CURRENT);
-	}
-
-	protected void cancelRepeatingAlarm() {
-		PendingIntent alarmIntent = alarmIntent();
-
-		AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-		alarmManager.cancel(alarmIntent);
-		mRepeatingAlarm = false;
-	}
 
 	@Override
 	public IBinder onBind(Intent intent) {
@@ -185,41 +157,10 @@ public class LocalService extends android.app.Service implements ILocalService {
 	}
 
 	@Override
-	public void onCreate() {
-		super.onCreate();
-
-		mNM = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-
-		startRepeatingAlarm();
-
-		showNotification();
-	}
-
-	@Override
-	public void onDestroy() {
-		super.onDestroy();
-
-		mNM.cancel(NOTIFICATION);
-
-		// Tell the user we stopped.
-		Toast.makeText(this, R.string.local_service_stopped, Toast.LENGTH_SHORT)
-				.show();
-	}
-
-	@Override
 	public int onStartCommand(Intent intent, int flags, int startId) {
 		super.onStartCommand(intent, flags, startId);
 
-		// TODO: Parse intent, either a start service or a display bus
-		showNotification();
-
-		return START_STICKY;
-	}
-
-	private void registerLocalServiceConnection(
-			ServiceConnection serviceConnection) {
-		// TODO Auto-generated method stub
-
+		return START_NOT_STICKY;
 	}
 
 	@Override
@@ -227,60 +168,6 @@ public class LocalService extends android.app.Service implements ILocalService {
 			StopPredictionsListener predictionListener) {
 		NearbyStopPredictionsByRouteListeners
 				.removeListener(predictionListener);
-	}
-
-	private void showNotification() {
-		// In this sample, we'll use the same text for the ticker and the
-		// expanded notification
-		CharSequence text = getText(R.string.local_service_started);
-
-		if (!mNotificationStops.isEmpty())
-			text = TextFormat.toString(mNotificationStops.get(0).route)
-					+ "   "
-					+ TextFormat
-							.toString(mNotificationStops.get(0).predictions);
-
-		// Set the icon, scrolling text and timestamp
-		if (mNotification == null) {
-			mNotification = new Notification(R.drawable.ic_launcher, text,
-					System.currentTimeMillis());
-
-		}
-
-		// The PendingIntent to launch our activity if the user selects this
-		// notification
-		PendingIntent contentIntent = PendingIntent.getActivity(this, 0,
-				new Intent(this, MainActivity.class),
-				PendingIntent.FLAG_UPDATE_CURRENT);
-
-		// Set the info for the views that show in the notification panel.
-		mNotification.setLatestEventInfo(this,
-				getText(R.string.local_service_started), text, contentIntent);
-
-		// Send the notification.
-		mNM.notify(NOTIFICATION, mNotification);
-	}
-
-	@Override
-	public void showNotification(StopPrediction prediction) {
-		mNotificationStops.clear();
-		mNotificationStops.add(prediction);
-		this.showNotification();
-	}
-
-	private void startRepeatingAlarm() {
-		if (mRepeatingAlarm)
-			return;
-		mRepeatingAlarm = true;
-
-		AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-
-		PendingIntent alarmIntent = alarmIntent();
-
-		long timeToRefresh = SystemClock.elapsedRealtime()
-				+ UPDATE_FREQUENCY_SEC * 1000;
-		alarmManager.setRepeating(AlarmManager.ELAPSED_REALTIME, timeToRefresh,
-				UPDATE_FREQUENCY_SEC * 1000, alarmIntent);
 	}
 
 	@Override
