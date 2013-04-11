@@ -15,7 +15,7 @@ import android.widget.ListView;
 import com.danielstiner.cyride.service.ILocalService;
 import com.danielstiner.cyride.service.IPredictions.StopPredictionsListener;
 import com.danielstiner.cyride.service.LocalService;
-import com.danielstiner.cyride.service.LocalService.LocalServiceConnection;
+import com.danielstiner.cyride.service.ServiceConnector;
 import com.danielstiner.cyride.util.Callback;
 import com.danielstiner.cyride.util.Constants;
 import com.danielstiner.cyride.util.NextBusAPI.StopPrediction;
@@ -44,9 +44,8 @@ public class NearbyStopsFragment extends ListFragment {
 		}
 	};
 
-	private LocalServiceConnection mServiceConnector = LocalService
+	private ServiceConnector<ILocalService> mServiceConnector = LocalService
 			.createConnection();
-
 	private final Runnable mViewUpdater = new Runnable() {
 		@Override
 		public void run() {

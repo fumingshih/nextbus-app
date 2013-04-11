@@ -32,6 +32,7 @@ import com.danielstiner.cyride.R.string;
 import com.danielstiner.cyride.util.Callback;
 import com.danielstiner.cyride.util.CallbackManager;
 import com.danielstiner.cyride.util.Constants;
+import com.danielstiner.cyride.util.Functor1;
 import com.danielstiner.cyride.util.LocationUtil;
 import com.danielstiner.cyride.util.NextBusAPI;
 import com.danielstiner.cyride.util.NextBusAPI.CachePolicy;
@@ -47,58 +48,6 @@ public class LocalService extends android.app.Service implements ILocalService {
 		LocalService getService() {
 			return LocalService.this;
 		}
-	}
-
-	public static class LocalServiceConnection {
-
-		private LocalService mBoundService;
-
-		private ServiceConnection mConnection = new ServiceConnection() {
-			public void onServiceConnected(ComponentName className,
-					IBinder service) {
-				mBoundService = ((LocalService.LocalBinder) service)
-						.getService();
-
-				while (!mScheduledCallbacks.isEmpty())
-					mScheduledCallbacks.poll().run(mBoundService);
-
-				mBoundService.registerLocalServiceConnection(this);
-			}
-
-			public void onServiceDisconnected(ComponentName className) {
-				mBoundService = null;
-			}
-		};
-		private boolean mIsBound = false;
-		private Queue<Callback<ILocalService>> mScheduledCallbacks = new LinkedList<Callback<ILocalService>>();
-
-		private LocalServiceConnection() {
-
-		}
-
-		public void bind(Context context) {
-			if (!mIsBound)
-				context.bindService(new Intent(context, LocalService.class),
-						mConnection, Context.BIND_AUTO_CREATE);
-			mIsBound = true;
-		}
-
-		public void schedule(Callback<ILocalService> callback) {
-			if (mIsBound && null != mBoundService) {
-				callback.run(mBoundService);
-			} else {
-				mScheduledCallbacks.add(callback);
-			}
-		}
-
-		public void unbind(Context context) {
-			if (mIsBound) {
-				// Detach our existing connection.
-				context.unbindService(mConnection);
-				mIsBound = false;
-			}
-		}
-
 	}
 
 	private class UpdateNearbyTask extends
@@ -137,6 +86,7 @@ public class LocalService extends android.app.Service implements ILocalService {
 			NearbyStopPredictionsByRouteListeners.runAll(predictions);
 		}
 	}
+
 	private static final String AGENCY = "cyride";
 
 	public static final List<StopPrediction> DEFAULT_PREDICTION_DATA;
@@ -163,8 +113,15 @@ public class LocalService extends android.app.Service implements ILocalService {
 	 * @param context
 	 * @return
 	 */
-	public static LocalServiceConnection createConnection() {
-		return new LocalServiceConnection();
+	public static ServiceConnector<ILocalService> createConnection() {
+		return ServiceConnector
+				.createConnection(new Functor1<IBinder, ILocalService>() {
+					@Override
+					public ILocalService apply(IBinder service) {
+						return ((LocalBinder) service).getService();
+					}
+
+				});
 	}
 
 	private final IBinder mBinder = new LocalBinder();
