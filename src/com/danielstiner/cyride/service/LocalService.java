@@ -53,8 +53,6 @@ public class LocalService extends android.app.Service implements ILocalService {
 
 		private LocalService mBoundService;
 
-		private boolean mIsBound = false;
-		private Queue<Callback<ILocalService>> mScheduledCallbacks = new LinkedList<Callback<ILocalService>>();
 		private ServiceConnection mConnection = new ServiceConnection() {
 			public void onServiceConnected(ComponentName className,
 					IBinder service) {
@@ -71,6 +69,8 @@ public class LocalService extends android.app.Service implements ILocalService {
 				mBoundService = null;
 			}
 		};
+		private boolean mIsBound = false;
+		private Queue<Callback<ILocalService>> mScheduledCallbacks = new LinkedList<Callback<ILocalService>>();
 
 		private LocalServiceConnection() {
 
@@ -99,19 +99,6 @@ public class LocalService extends android.app.Service implements ILocalService {
 			}
 		}
 
-	}
-
-	public static final List<StopPrediction> DEFAULT_PREDICTION_DATA;
-	static {
-		LinkedList<StopPrediction> p = new LinkedList<StopPrediction>();
-		StopPrediction s = new StopPrediction();
-		s.route = new Route("NXN", "NX-N Express", 333);
-		s.route.direction = "Outbound to Balboa Park Station";
-		s.stop = new Stop("San Jose Ave & Mt Vernon Ave");
-		s.predictions.add(new Prediction(
-				new Date(new Date().getTime() + 100000)));
-		p.add(s);
-		DEFAULT_PREDICTION_DATA = p;
 	}
 
 	private class UpdateNearbyTask extends
@@ -150,12 +137,25 @@ public class LocalService extends android.app.Service implements ILocalService {
 			NearbyStopPredictionsByRouteListeners.runAll(predictions);
 		}
 	}
-
 	private static final String AGENCY = "cyride";
+
+	public static final List<StopPrediction> DEFAULT_PREDICTION_DATA;
 
 	private final static int NOTIFICATION = R.string.local_service_started;
 
 	private static final int UPDATE_FREQUENCY_SEC = 1;
+
+	static {
+		LinkedList<StopPrediction> p = new LinkedList<StopPrediction>();
+		StopPrediction s = new StopPrediction();
+		s.route = new Route("NXN", "NX-N Express", 333);
+		s.route.direction = "Outbound to Balboa Park Station";
+		s.stop = new Stop("San Jose Ave & Mt Vernon Ave");
+		s.predictions.add(new Prediction(
+				new Date(new Date().getTime() + 100000)));
+		p.add(s);
+		DEFAULT_PREDICTION_DATA = p;
+	}
 
 	/**
 	 * Call at most once per context
@@ -167,15 +167,10 @@ public class LocalService extends android.app.Service implements ILocalService {
 		return new LocalServiceConnection();
 	}
 
-	private final List<StopPrediction> mNotificationStops = new LinkedList<StopPrediction>();
+	private final IBinder mBinder = new LocalBinder();
 
 	private final NextBusAPI mNextBusAPI = new NextBusAPI(Constants.AGENCY,
 			new NextBusAPI.CachePolicy() {
-
-				@Override
-				public boolean shouldUpdateStops(Date lastUpdate) {
-					return lastUpdate == null;
-				}
 
 				@Override
 				public boolean shouldUpdateStopPredictions(
@@ -190,17 +185,42 @@ public class LocalService extends android.app.Service implements ILocalService {
 
 					return false;
 				}
+
+				@Override
+				public boolean shouldUpdateStops(Date lastUpdate) {
+					return lastUpdate == null;
+				}
 			});
 
 	private NotificationManager mNM;
 
-	private CallbackManager<Collection<StopPrediction>> NearbyStopPredictionsByRouteListeners = new CallbackManager<Collection<StopPrediction>>();
+	private Notification mNotification;
 
-	private final IBinder mBinder = new LocalBinder();
+	private final List<StopPrediction> mNotificationStops = new LinkedList<StopPrediction>();
 
 	private boolean mRepeatingAlarm;
 
-	private Notification mNotification;
+	private CallbackManager<Collection<StopPrediction>> NearbyStopPredictionsByRouteListeners = new CallbackManager<Collection<StopPrediction>>();
+
+	@Override
+	public void addNearbyStopPredictionsByRouteListener(
+			StopPredictionsListener predictionListener) {
+		NearbyStopPredictionsByRouteListeners.addListener(predictionListener);
+	}
+
+	// method to construct the alarm intent
+	private PendingIntent alarmIntent() {
+		return PendingIntent.getService(this, 0, new Intent(this,
+				LocalService.class), PendingIntent.FLAG_UPDATE_CURRENT);
+	}
+
+	protected void cancelRepeatingAlarm() {
+		PendingIntent alarmIntent = alarmIntent();
+
+		AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+		alarmManager.cancel(alarmIntent);
+		mRepeatingAlarm = false;
+	}
 
 	@Override
 	public IBinder onBind(Intent intent) {
@@ -245,33 +265,11 @@ public class LocalService extends android.app.Service implements ILocalService {
 
 	}
 
-	private void startRepeatingAlarm() {
-		if (mRepeatingAlarm)
-			return;
-		mRepeatingAlarm = true;
-
-		AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-
-		PendingIntent alarmIntent = alarmIntent();
-
-		long timeToRefresh = SystemClock.elapsedRealtime()
-				+ UPDATE_FREQUENCY_SEC * 1000;
-		alarmManager.setRepeating(AlarmManager.ELAPSED_REALTIME, timeToRefresh,
-				UPDATE_FREQUENCY_SEC * 1000, alarmIntent);
-	}
-
-	protected void cancelRepeatingAlarm() {
-		PendingIntent alarmIntent = alarmIntent();
-
-		AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-		alarmManager.cancel(alarmIntent);
-		mRepeatingAlarm = false;
-	}
-
-	// method to construct the alarm intent
-	private PendingIntent alarmIntent() {
-		return PendingIntent.getService(this, 0, new Intent(this,
-				LocalService.class), PendingIntent.FLAG_UPDATE_CURRENT);
+	@Override
+	public void removeNearbyStopPredictionsByRouteListener(
+			StopPredictionsListener predictionListener) {
+		NearbyStopPredictionsByRouteListeners
+				.removeListener(predictionListener);
 	}
 
 	private void showNotification() {
@@ -313,17 +311,19 @@ public class LocalService extends android.app.Service implements ILocalService {
 		this.showNotification();
 	}
 
-	@Override
-	public void addNearbyStopPredictionsByRouteListener(
-			StopPredictionsListener predictionListener) {
-		NearbyStopPredictionsByRouteListeners.addListener(predictionListener);
-	}
+	private void startRepeatingAlarm() {
+		if (mRepeatingAlarm)
+			return;
+		mRepeatingAlarm = true;
 
-	@Override
-	public void removeNearbyStopPredictionsByRouteListener(
-			StopPredictionsListener predictionListener) {
-		NearbyStopPredictionsByRouteListeners
-				.removeListener(predictionListener);
+		AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+
+		PendingIntent alarmIntent = alarmIntent();
+
+		long timeToRefresh = SystemClock.elapsedRealtime()
+				+ UPDATE_FREQUENCY_SEC * 1000;
+		alarmManager.setRepeating(AlarmManager.ELAPSED_REALTIME, timeToRefresh,
+				UPDATE_FREQUENCY_SEC * 1000, alarmIntent);
 	}
 
 	@Override

@@ -10,12 +10,8 @@ import com.danielstiner.cyride.util.NextBusAPI.Stop;
 
 public class TextFormat {
 
-	public static CharSequence toString(Route route) {
-		return (route == null) ? null : route.title;
-	}
-
-	public static CharSequence toString(Stop stop) {
-		return (stop == null) ? null : stop.title;
+	public static CharSequence distanceToString(float distance) {
+		return Float.toString(distance) + "ft";
 	}
 
 	public static CharSequence toString(List<Prediction> predictions) {
@@ -40,8 +36,12 @@ public class TextFormat {
 		return sb.substring(1);
 	}
 
-	public static CharSequence distanceToString(float distance) {
-		return Float.toString(distance) + "ft";
+	public static CharSequence toString(Route route) {
+		return (route == null) ? null : route.title;
+	}
+
+	public static CharSequence toString(Stop stop) {
+		return (stop == null) ? null : stop.title;
 	}
 
 }

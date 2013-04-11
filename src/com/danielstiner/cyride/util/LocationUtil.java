@@ -11,6 +11,13 @@ import android.location.LocationManager;
 
 public class LocationUtil {
 
+	public static double distance(double lat, double lng, Location l) {
+
+		// Approximate
+		return Math.abs(l.getLatitude() - lat)
+				+ Math.abs(l.getLongitude() - lng);
+	}
+
 	public static Location getBestCurrentLocation(LocationManager lm) {
 		List<String> providers = lm.getProviders(true);
 
@@ -34,13 +41,6 @@ public class LocationUtil {
 		}
 
 		return bestLoc;
-	}
-
-	public static double distance(double lat, double lng, Location l) {
-
-		// Approximate
-		return Math.abs(l.getLatitude() - lat)
-				+ Math.abs(l.getLongitude() - lng);
 	}
 
 }

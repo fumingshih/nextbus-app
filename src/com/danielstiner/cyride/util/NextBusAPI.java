@@ -25,63 +25,32 @@ import android.location.Location;
 
 public class NextBusAPI {
 
-	private final String mAgency;
-	private CachePolicy mCachePolicy;
-	private Map<String, Route> mRoutes = new HashMap<String, NextBusAPI.Route>();
-	private Date mStopsLastUpdated;
-	private Collection<Stop> mStopsCache;
-	private Map<RouteStop, StopPrediction> mStopRoutePredictionsCache = new HashMap<NextBusAPI.RouteStop, NextBusAPI.StopPrediction>();
-
-	public NextBusAPI(String agency, CachePolicy cachingPolicy) {
-		this.mAgency = agency;
-		this.mCachePolicy = cachingPolicy;
-	}
-
 	public interface CachePolicy {
-
-		boolean shouldUpdateStops(Date lastUpdate);
 
 		boolean shouldUpdateStopPredictions(StopPrediction c);
 
-	}
+		boolean shouldUpdateStops(Date lastUpdate);
 
+	}
 	public static class Prediction {
+		public Date arrival;
+
 		public Prediction(Date arrival) {
 			this.arrival = arrival;
 		}
-
-		public Date arrival;
 	}
-
 	public static class Route {
+		public final int color;
+
+		public String direction;
+		public final String tag;
+		public final String title;
 		public Route(String tag, String title, int color) {
 			this.tag = tag;
 			this.title = title;
 			this.color = color;
 		}
-
-		public final int color;
-		public final String tag;
-		public final String title;
-		public String direction;
 	}
-
-	public static class Stop {
-
-		public Stop(String title) {
-			this.title = title;
-		}
-
-		public final String title;
-
-		public final List<Route> routes = new LinkedList<NextBusAPI.Route>();
-
-		double latitude;
-		double longitude;
-		String tag;
-		String routeTag;
-	}
-
 	public static class RouteStop {
 		public final Route route;
 		public final Stop stop;
@@ -91,11 +60,25 @@ public class NextBusAPI {
 			this.stop = s;
 		}
 	}
+	public static class Stop {
 
+		double latitude;
+
+		double longitude;
+
+		public final List<Route> routes = new LinkedList<NextBusAPI.Route>();
+
+		String routeTag;
+		String tag;
+		public final String title;
+		public Stop(String title) {
+			this.title = title;
+		}
+	}
 	public static class StopPrediction {
+		public final List<Prediction> predictions = new LinkedList<Prediction>();
 		public Route route;
 		public Stop stop;
-		public final List<Prediction> predictions = new LinkedList<Prediction>();
 	}
 
 	private static class Urls {
@@ -114,6 +97,28 @@ public class NextBusAPI {
 			return new URL(BASE_URL + "?command=routeConfig&terse=true&a="
 					+ agencyString);
 		}
+	}
+
+	public static Collection<Stop> nearestStopPerRoute(Collection<Stop> stops,
+			Location l) {
+
+		final Map<Route, Stop> stopsByRoute = new HashMap<NextBusAPI.Route, NextBusAPI.Stop>();
+
+		for (Stop s : stops) {
+			// TODO: More advanced filtering based on how long it would take to
+			// walk to the stop from the user's current location
+
+			for (Route r : s.routes) {
+				Stop ss = stopsByRoute.get(r);
+				if (ss == null
+						|| LocationUtil.distance(s.latitude, s.longitude, l) < LocationUtil
+								.distance(ss.latitude, ss.longitude, l))
+					stopsByRoute.put(r, s);
+			}
+
+		}
+
+		return stopsByRoute.values();
 	}
 
 	public static List<Stop> nearestStops(List<Stop> stops, Location location,
@@ -146,104 +151,25 @@ public class NextBusAPI {
 		return newStops;
 	}
 
-	public static Collection<Stop> nearestStopPerRoute(Collection<Stop> stops,
-			Location l) {
+	private final String mAgency;
 
-		final Map<Route, Stop> stopsByRoute = new HashMap<NextBusAPI.Route, NextBusAPI.Stop>();
+	private CachePolicy mCachePolicy;
 
-		for (Stop s : stops) {
-			// TODO: More advanced filtering based on how long it would take to
-			// walk to the stop from the user's current location
+	private Map<String, Route> mRoutes = new HashMap<String, NextBusAPI.Route>();
 
-			for (Route r : s.routes) {
-				Stop ss = stopsByRoute.get(r);
-				if (ss == null
-						|| LocationUtil.distance(s.latitude, s.longitude, l) < LocationUtil
-								.distance(ss.latitude, ss.longitude, l))
-					stopsByRoute.put(r, s);
-			}
+	private Map<RouteStop, StopPrediction> mStopRoutePredictionsCache = new HashMap<NextBusAPI.RouteStop, NextBusAPI.StopPrediction>();
 
-		}
+	private Collection<Stop> mStopsCache;
 
-		return stopsByRoute.values();
+	private Date mStopsLastUpdated;
+
+	public NextBusAPI(String agency, CachePolicy cachingPolicy) {
+		this.mAgency = agency;
+		this.mCachePolicy = cachingPolicy;
 	}
 
-	private List<StopPrediction> parsePredictions(Document predictions_document) {
-		List<StopPrediction> predictions = new ArrayList<StopPrediction>();
-
-		Element root = predictions_document.getRootElement();
-
-		// iterate through child elements of root
-		for (Iterator<Element> i = root.elementIterator("predictions"); i
-				.hasNext();) {
-			Element predictionsElement = i.next();
-
-			String routeTag = predictionsElement.attributeValue("routeTag");
-			String routeTitle = predictionsElement.attributeValue("routeTitle");
-			String stopTitle = predictionsElement.attributeValue("stopTitle");
-
-			if (null == predictionsElement.element("direction"))
-				continue;
-
-			StopPrediction p = new StopPrediction();
-			p.stop = new Stop(stopTitle);
-			p.route = getRoute(routeTag, routeTitle, 0);
-
-			for (Iterator<Element> j = predictionsElement.element("direction")
-					.elementIterator("prediction"); j.hasNext();) {
-				Element predictionElement = j.next();
-
-				Date arrival = new Date();
-				arrival.setTime(Long.parseLong(predictionElement
-						.attributeValue("epochTime")));
-
-				p.predictions.add(new Prediction(arrival));
-
-			}
-
-			predictions.add(p);
-
-		}
-
-		return predictions;
-	}
-
-	private Collection<Stop> parseStops(Document stops_document) {
-
-		Collection<Stop> stops = new ArrayList<Stop>();
-
-		Element root = stops_document.getRootElement();
-
-		// iterate through child elements of root
-		for (Iterator<Element> i = root.elementIterator("route"); i.hasNext();) {
-			Element routeElement = i.next();
-
-			Route r = parseRouteElement(routeElement);
-
-			for (Iterator<Element> j = routeElement.elementIterator("stop"); j
-					.hasNext();) {
-				Element stopElement = j.next();
-
-				Stop s = new Stop(stopElement.attributeValue("title"));
-				s.tag = stopElement.attributeValue("tag");
-				s.latitude = Double.parseDouble(stopElement
-						.attributeValue("lat"));
-				s.longitude = Double.parseDouble(stopElement
-						.attributeValue("lon"));
-				s.routes.add(r);
-				stops.add(s);
-			}
-		}
-
-		return stops;
-	}
-
-	private Route parseRouteElement(Element routeElement) {
-		String routeTag = routeElement.attributeValue("tag");
-		String routeTitle = routeElement.attributeValue("title");
-		int routeColor = Color.parseColor("#"
-				+ routeElement.attributeValue("color"));
-		return getRoute(routeTag, routeTitle, routeColor);
+	private StopPrediction getCachedPredictions(Stop s, Route r) {
+		return mStopRoutePredictionsCache.get(new RouteStop(r, s));
 	}
 
 	private Route getRoute(String routeTag, String routeTitle, int routeColor) {
@@ -298,8 +224,91 @@ public class NextBusAPI {
 		return predictions;
 	}
 
-	private StopPrediction getCachedPredictions(Stop s, Route r) {
-		return mStopRoutePredictionsCache.get(new RouteStop(r, s));
+	public Collection<Stop> getStops() {
+
+		if (mCachePolicy.shouldUpdateStops(mStopsLastUpdated)) {
+			updateRouteConfig();
+		}
+
+		return this.mStopsCache;
+	}
+
+	private List<StopPrediction> parsePredictions(Document predictions_document) {
+		List<StopPrediction> predictions = new ArrayList<StopPrediction>();
+
+		Element root = predictions_document.getRootElement();
+
+		// iterate through child elements of root
+		for (Iterator<Element> i = root.elementIterator("predictions"); i
+				.hasNext();) {
+			Element predictionsElement = i.next();
+
+			String routeTag = predictionsElement.attributeValue("routeTag");
+			String routeTitle = predictionsElement.attributeValue("routeTitle");
+			String stopTitle = predictionsElement.attributeValue("stopTitle");
+
+			if (null == predictionsElement.element("direction"))
+				continue;
+
+			StopPrediction p = new StopPrediction();
+			p.stop = new Stop(stopTitle);
+			p.route = getRoute(routeTag, routeTitle, 0);
+
+			for (Iterator<Element> j = predictionsElement.element("direction")
+					.elementIterator("prediction"); j.hasNext();) {
+				Element predictionElement = j.next();
+
+				Date arrival = new Date();
+				arrival.setTime(Long.parseLong(predictionElement
+						.attributeValue("epochTime")));
+
+				p.predictions.add(new Prediction(arrival));
+
+			}
+
+			predictions.add(p);
+
+		}
+
+		return predictions;
+	}
+
+	private Route parseRouteElement(Element routeElement) {
+		String routeTag = routeElement.attributeValue("tag");
+		String routeTitle = routeElement.attributeValue("title");
+		int routeColor = Color.parseColor("#"
+				+ routeElement.attributeValue("color"));
+		return getRoute(routeTag, routeTitle, routeColor);
+	}
+
+	private Collection<Stop> parseStops(Document stops_document) {
+
+		Collection<Stop> stops = new ArrayList<Stop>();
+
+		Element root = stops_document.getRootElement();
+
+		// iterate through child elements of root
+		for (Iterator<Element> i = root.elementIterator("route"); i.hasNext();) {
+			Element routeElement = i.next();
+
+			Route r = parseRouteElement(routeElement);
+
+			for (Iterator<Element> j = routeElement.elementIterator("stop"); j
+					.hasNext();) {
+				Element stopElement = j.next();
+
+				Stop s = new Stop(stopElement.attributeValue("title"));
+				s.tag = stopElement.attributeValue("tag");
+				s.latitude = Double.parseDouble(stopElement
+						.attributeValue("lat"));
+				s.longitude = Double.parseDouble(stopElement
+						.attributeValue("lon"));
+				s.routes.add(r);
+				stops.add(s);
+			}
+		}
+
+		return stops;
 	}
 
 	private void setCachedPredictions(StopPrediction p) {
@@ -326,14 +335,5 @@ public class NextBusAPI {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-	}
-
-	public Collection<Stop> getStops() {
-
-		if (mCachePolicy.shouldUpdateStops(mStopsLastUpdated)) {
-			updateRouteConfig();
-		}
-
-		return this.mStopsCache;
 	}
 }

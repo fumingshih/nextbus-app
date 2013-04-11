@@ -22,10 +22,7 @@ import com.danielstiner.cyride.util.NextBusAPI.StopPrediction;
 
 public class NearbyStopsFragment extends ListFragment {
 
-	private LocalServiceConnection mServiceConnector = LocalService
-			.createConnection();
 	private ArrayAdapter<StopPrediction> mAdapter;
-
 	private Handler mHandler;
 
 	private final StopPredictionsListener mPredictionListener = new StopPredictionsListener() {
@@ -47,6 +44,9 @@ public class NearbyStopsFragment extends ListFragment {
 		}
 	};
 
+	private LocalServiceConnection mServiceConnector = LocalService
+			.createConnection();
+
 	private final Runnable mViewUpdater = new Runnable() {
 		@Override
 		public void run() {
@@ -55,45 +55,6 @@ public class NearbyStopsFragment extends ListFragment {
 
 			mHandler.postDelayed(mViewUpdater, Constants.VIEW_UPDATE_INTERVAL);
 		}
-	};
-
-	public void onCreate(Bundle savedInstanceState) {
-		super.onCreate(savedInstanceState);
-		mHandler = new Handler();
-	};
-
-	@Override
-	public void onListItemClick(ListView l, View v, int position, long id) {
-		super.onListItemClick(l, v, position, id);
-
-		final StopPrediction selected = mAdapter.getItem(position);
-
-		mServiceConnector.schedule(new Callback<ILocalService>() {
-			@Override
-			public void run(ILocalService service) {
-				service.showNotification(selected);
-			}
-		});
-	}
-
-	@Override
-	public void onActivityCreated(Bundle savedInstanceState) {
-		super.onCreate(savedInstanceState);
-
-		mAdapter = buildAdapter(getActivity());
-
-		setListAdapter(mAdapter);
-
-	}
-
-	public void onResume() {
-		super.onResume();
-		mViewUpdater.run();
-	};
-
-	public void onPause() {
-		super.onPause();
-		mHandler.removeCallbacks(mViewUpdater);
 	};
 
 	private ArrayAdapter<StopPrediction> buildAdapter(Context context) {
@@ -108,6 +69,16 @@ public class NearbyStopsFragment extends ListFragment {
 //		});
 
 		return a;
+	};
+
+	@Override
+	public void onActivityCreated(Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+
+		mAdapter = buildAdapter(getActivity());
+
+		setListAdapter(mAdapter);
+
 	}
 
 	@Override
@@ -124,6 +95,11 @@ public class NearbyStopsFragment extends ListFragment {
 		});
 	}
 
+	public void onCreate(Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+		mHandler = new Handler();
+	};
+
 	@Override
 	public void onDetach() {
 		super.onDetach();
@@ -135,5 +111,29 @@ public class NearbyStopsFragment extends ListFragment {
 			}
 		});
 		mServiceConnector.unbind(getActivity());
+	};
+
+	@Override
+	public void onListItemClick(ListView l, View v, int position, long id) {
+		super.onListItemClick(l, v, position, id);
+
+		final StopPrediction selected = mAdapter.getItem(position);
+
+		mServiceConnector.schedule(new Callback<ILocalService>() {
+			@Override
+			public void run(ILocalService service) {
+				service.showNotification(selected);
+			}
+		});
+	}
+
+	public void onPause() {
+		super.onPause();
+		mHandler.removeCallbacks(mViewUpdater);
+	}
+
+	public void onResume() {
+		super.onResume();
+		mViewUpdater.run();
 	}
 }
