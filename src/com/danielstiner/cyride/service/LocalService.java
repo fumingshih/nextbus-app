@@ -63,12 +63,8 @@ public class LocalService extends android.app.Service implements ILocalService {
 			LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
 			Location location = LocationUtil.getBestCurrentLocation(lm);
 
-			// FIXME: Returning data temp for testing
-			// if (location != null)
-			// return DEFAULT_PREDICTION_DATA;
-
 			if (null == location) {
-				return DEFAULT_PREDICTION_DATA;
+				return null;
 			}
 
 			try {
@@ -91,20 +87,6 @@ public class LocalService extends android.app.Service implements ILocalService {
 		protected void onPostExecute(Collection<StopPrediction> predictions) {
 			NearbyStopPredictionsByRouteListeners.runAll(predictions);
 		}
-	}
-
-	public static final List<StopPrediction> DEFAULT_PREDICTION_DATA;
-
-	static {
-		LinkedList<StopPrediction> p = new LinkedList<StopPrediction>();
-		StopPrediction s = new StopPrediction();
-		s.route = new Route("NXN", "NX-N Express", 333);
-		s.route.direction = "Outbound to Balboa Park Station";
-		s.stop = new Stop("San Jose Ave & Mt Vernon Ave");
-		s.predictions.add(new Prediction(
-				new Date(new Date().getTime() + 100000)));
-		p.add(s);
-		DEFAULT_PREDICTION_DATA = p;
 	}
 
 	/**
