@@ -16,15 +16,22 @@ import android.os.SystemClock;
 import android.widget.Toast;
 
 import com.danielstiner.cyride.MainActivity;
+import com.danielstiner.cyride.NearbyStopsFragment;
 import com.danielstiner.cyride.R;
 import com.danielstiner.cyride.util.Constants;
 import com.danielstiner.cyride.util.Functor1;
+import com.danielstiner.cyride.util.NextBusAPI;
 import com.danielstiner.cyride.util.NextBusAPI.StopPrediction;
 import com.danielstiner.cyride.util.TextFormat;
 
 public class NotificationService extends Service implements INotifications {
+	
+	private final static String CLASS = "com.danielstiner.cyride.service";
 
 	private final static int NOTIFICATION = R.string.local_service_started;
+
+	private static final String INTENT_EXTRA_SHOW_STOP_PREDICTIONS = CLASS
+			+ ".show_routestop_predictions";
 
 	private final List<StopPrediction> mNotificationStops = new LinkedList<StopPrediction>();
 
@@ -38,6 +45,13 @@ public class NotificationService extends Service implements INotifications {
 	private PendingIntent alarmIntent() {
 		return PendingIntent.getService(this, 0, new Intent(this,
 				LocalService.class), PendingIntent.FLAG_UPDATE_CURRENT);
+	}
+
+	public static void showStopPredictions(Context context,
+			NextBusAPI.RouteStop stopAndRoute) {
+		Intent i = new Intent(context, NotificationService.class);
+		i.putExtra(INTENT_EXTRA_SHOW_STOP_PREDICTIONS, stopAndRoute);
+		context.startService(i);
 	}
 
 	protected void cancelRepeatingAlarm() {
@@ -54,19 +68,23 @@ public class NotificationService extends Service implements INotifications {
 
 		mNM = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
 
-		startRepeatingAlarm();
-
-		showNotification();
+		// TODO: Only run alarm if neccessary
+		// startRepeatingAlarm();
 	}
 
 	@Override
 	public int onStartCommand(Intent intent, int flags, int startId) {
 		super.onStartCommand(intent, flags, startId);
 
+		handleIntent(intent);
+
+		return START_NOT_STICKY;
+	}
+
+	private void handleIntent(Intent intent) {
 		// TODO: Parse intent, either a start service or a display bus
 		showNotification();
 
-		return START_NOT_STICKY;
 	}
 
 	public class LocalBinder extends Binder {
@@ -75,22 +93,23 @@ public class NotificationService extends Service implements INotifications {
 		}
 	}
 
-	/**
-	 * Call at most once per context
-	 * 
-	 * @param context
-	 * @return
-	 */
-	public static ServiceConnector<INotifications> createConnection() {
-		return ServiceConnector
-				.createConnection(NotificationService.class, new Functor1<IBinder, INotifications>() {
-					@Override
-					public INotifications apply(IBinder service) {
-						return ((LocalBinder) service).getService();
-					}
-
-				});
-	}
+	// /**
+	// * Call at most once per context
+	// *
+	// * @param context
+	// * @return
+	// */
+	// public static ServiceConnector<INotifications> createConnection() {
+	// return ServiceConnector
+	// .createConnection(NotificationService.class, new Functor1<IBinder,
+	// INotifications>() {
+	// @Override
+	// public INotifications apply(IBinder service) {
+	// return ((LocalBinder) service).getService();
+	// }
+	//
+	// });
+	// }
 
 	private final IBinder mBinder = new LocalBinder();
 

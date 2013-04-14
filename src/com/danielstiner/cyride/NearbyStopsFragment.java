@@ -48,8 +48,6 @@ public class NearbyStopsFragment extends ListFragment {
 
 	private ServiceConnector<ILocalService> mPredictionsService = LocalService
 			.createConnection();
-	private ServiceConnector<INotifications> mNotificationService = NotificationService
-			.createConnection();
 
 	private final Runnable mViewUpdater = new Runnable() {
 		@Override
@@ -90,7 +88,6 @@ public class NearbyStopsFragment extends ListFragment {
 		super.onAttach(activity);
 
 		mPredictionsService.bind(activity);
-		mNotificationService.bind(activity);
 		mPredictionsService.schedule(new Callback<ILocalService>() {
 			@Override
 			public void run(ILocalService service) {
@@ -116,7 +113,6 @@ public class NearbyStopsFragment extends ListFragment {
 			}
 		});
 		mPredictionsService.unbind(getActivity());
-		mNotificationService.unbind(getActivity());
 	};
 
 	@Override
@@ -125,12 +121,7 @@ public class NearbyStopsFragment extends ListFragment {
 
 		final StopPrediction selected = mAdapter.getItem(position);
 
-		mNotificationService.schedule(new Callback<INotifications>() {
-			@Override
-			public void run(INotifications service) {
-				service.showNotification(selected);
-			}
-		});
+		NotificationService.showStopPredictions(getActivity(), selected.routestop);
 	}
 
 	public void onPause() {
