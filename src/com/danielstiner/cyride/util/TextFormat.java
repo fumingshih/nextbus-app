@@ -19,7 +19,12 @@ public class TextFormat {
 			return null;
 
 		StringBuilder sb = new StringBuilder();
+		int i = 0;
 		for (Prediction p : predictions) {
+
+			if (i++ == 2)
+				break;
+
 			sb.append(' ');
 
 			long seconds = (p.arrival.getTime() - new Date().getTime()) / 1000;
