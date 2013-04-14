@@ -29,7 +29,12 @@ public class TextFormat {
 
 			long seconds = (p.arrival.getTime() - new Date().getTime()) / 1000;
 
-			if (seconds <= 60) {
+			if (seconds <= 0) {
+				if (seconds < -10)
+					continue;
+				else
+					sb.append("arriving");
+			} else if (seconds <= 60) {
 				sb.append(seconds);
 				sb.append('s');
 			} else {
