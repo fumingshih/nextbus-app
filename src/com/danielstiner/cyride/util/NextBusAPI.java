@@ -1,5 +1,6 @@
 package com.danielstiner.cyride.util;
 
+import java.io.Serializable;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
@@ -22,6 +23,8 @@ import org.dom4j.io.SAXReader;
 
 import android.graphics.Color;
 import android.location.Location;
+import android.os.Parcel;
+import android.os.Parcelable;
 
 public class NextBusAPI {
 
@@ -31,27 +34,61 @@ public class NextBusAPI {
 
 		boolean shouldUpdateStops(Date lastUpdate);
 
+		void saveCache(Cache cache);
+
+		Cache loadCache();
+
 	}
-	public static class Prediction {
+
+	public static class Cache implements DataTransferObject {
+		public Cache(String agency) {
+			this.agency = agency;
+		}
+		
+		private String agency;
+
+		private static final long serialVersionUID = -5003315853529912609L;
+
+		private Map<String, Route> mRoutes = new HashMap<String, NextBusAPI.Route>();
+
+		private Map<RouteStop, StopPrediction> mStopRoutePredictionsCache = new HashMap<NextBusAPI.RouteStop, NextBusAPI.StopPrediction>();
+
+		private Map<String, Stop> mStopsByTitle = new HashMap<String, NextBusAPI.Stop>();
+
+		private Date mStopsLastUpdated;
+	}
+
+	private interface DataTransferObject extends Serializable {
+
+	}
+
+	public static class Prediction implements DataTransferObject {
+		private static final long serialVersionUID = -2480643929223384105L;
+
 		public Date arrival;
 
 		public Prediction(Date arrival) {
 			this.arrival = arrival;
 		}
 	}
+
 	public static class Route {
 		public final int color;
 
 		public String direction;
 		public final String tag;
 		public final String title;
+
 		public Route(String tag, String title, int color) {
 			this.tag = tag;
 			this.title = title;
 			this.color = color;
 		}
 	}
-	public static class RouteStop {
+
+	public static class RouteStop implements DataTransferObject {
+		private static final long serialVersionUID = 7072146394309144554L;
+		
 		public final Route route;
 		public final Stop stop;
 
@@ -60,6 +97,7 @@ public class NextBusAPI {
 			this.stop = s;
 		}
 	}
+
 	public static class Stop {
 
 		double latitude;
@@ -71,14 +109,24 @@ public class NextBusAPI {
 		String routeTag;
 		String tag;
 		public final String title;
+
 		public Stop(String title) {
 			this.title = title;
 		}
 	}
+
 	public static class StopPrediction {
+
+		public StopPrediction(RouteStop routestop) {
+			this.routestop = routestop;
+			this.route = routestop.route;
+			this.stop = routestop.stop;
+		}
+
 		public final List<Prediction> predictions = new LinkedList<Prediction>();
-		public Route route;
-		public Stop stop;
+		public final RouteStop routestop;
+		public final Route route;
+		public final Stop stop;
 	}
 
 	private static class Urls {
@@ -87,14 +135,16 @@ public class NextBusAPI {
 
 		private static URL getMultiStopUrl(String agencyString,
 				String queryParameters) throws MalformedURLException {
-			return new URL(BASE_URL
-					+ "?command=predictionsForMultiStops&terse=true&a="
-					+ agencyString + "&" + queryParameters);
+			return new URL(
+					BASE_URL
+							+ "?command=predictionsForMultiStops&useShortTitles=true&terse=true&a="
+							+ agencyString + "&" + queryParameters);
 		}
 
 		private static URL getRouteConfigUrl(String agencyString)
 				throws MalformedURLException {
-			return new URL(BASE_URL + "?command=routeConfig&terse=true&a="
+			return new URL(BASE_URL
+					+ "?command=routeConfig&useShortTitles=true&terse=true&a="
 					+ agencyString);
 		}
 	}
@@ -151,35 +201,55 @@ public class NextBusAPI {
 		return newStops;
 	}
 
-	private final String mAgency;
+	private String mAgency;
 
 	private CachePolicy mCachePolicy;
-
-	private Map<String, Route> mRoutes = new HashMap<String, NextBusAPI.Route>();
-
-	private Map<RouteStop, StopPrediction> mStopRoutePredictionsCache = new HashMap<NextBusAPI.RouteStop, NextBusAPI.StopPrediction>();
-
-	private Collection<Stop> mStopsCache;
-
-	private Date mStopsLastUpdated;
+	private Cache mCache;
 
 	public NextBusAPI(String agency, CachePolicy cachingPolicy) {
-		this.mAgency = agency;
-		this.mCachePolicy = cachingPolicy;
+		mCachePolicy = cachingPolicy;
+		setAgency(agency);
+	}
+
+	private void setAgency(String agency) {
+		mAgency = agency;
+
+		mCache = mCachePolicy.loadCache();
+		if (mCache == null || !agency.equals(mCache.agency))
+			mCache = new Cache(agency);
+	}
+	
+	public void shutdown() {
+		mCachePolicy.saveCache(mCache);
 	}
 
 	private StopPrediction getCachedPredictions(Stop s, Route r) {
-		return mStopRoutePredictionsCache.get(new RouteStop(r, s));
+		return mCache.mStopRoutePredictionsCache.get(new RouteStop(r, s));
 	}
 
 	private Route getRoute(String routeTag, String routeTitle, int routeColor) {
-		Route r = mRoutes.get(routeTag);
+		Route r = mCache.mRoutes.get(routeTag);
 		if (r == null) {
 			r = new Route(routeTag, routeTitle, routeColor);
-			mRoutes.put(routeTag, r);
+			mCache.mRoutes.put(routeTag, r);
 		}
 
 		return r;
+	}
+
+	private RouteStop getRouteStop(String stopTitle, String routeTag) {
+		Route r = mCache.mRoutes.get(routeTag);
+		Stop s = mCache.mStopsByTitle.get(stopTitle);
+
+		// TODO Better errors
+		if (r == null) {
+			throw new IllegalArgumentException();
+		}
+		if (s == null) {
+			throw new IllegalArgumentException();
+		}
+
+		return new RouteStop(r, s);
 	}
 
 	public Collection<StopPrediction> getStopPredictions(
@@ -213,24 +283,24 @@ public class NextBusAPI {
 
 		SAXReader reader = new SAXReader();
 		Document predictions_document = reader.read(u);
-		
+
 		Collection<StopPrediction> newPredictions = parsePredictions(predictions_document);
-		
-		for(StopPrediction p : newPredictions) {
+
+		for (StopPrediction p : newPredictions) {
 			setCachedPredictions(p);
 		}
 		predictions.addAll(newPredictions);
-		
+
 		return predictions;
 	}
 
 	public Collection<Stop> getStops() {
 
-		if (mCachePolicy.shouldUpdateStops(mStopsLastUpdated)) {
+		if (mCachePolicy.shouldUpdateStops(mCache.mStopsLastUpdated)) {
 			updateRouteConfig();
 		}
 
-		return this.mStopsCache;
+		return mCache.mStopsByTitle.values();
 	}
 
 	private List<StopPrediction> parsePredictions(Document predictions_document) {
@@ -246,13 +316,16 @@ public class NextBusAPI {
 			String routeTag = predictionsElement.attributeValue("routeTag");
 			String routeTitle = predictionsElement.attributeValue("routeTitle");
 			String stopTitle = predictionsElement.attributeValue("stopTitle");
+			String dirTitleBecauseNoPredictions = predictionsElement
+					.attributeValue("dirTitleBecauseNoPredictions");
+			String agencyTitle = predictionsElement
+					.attributeValue("agencyTitle");
 
 			if (null == predictionsElement.element("direction"))
 				continue;
 
-			StopPrediction p = new StopPrediction();
-			p.stop = new Stop(stopTitle);
-			p.route = getRoute(routeTag, routeTitle, 0);
+			StopPrediction p = new StopPrediction(getRouteStop(stopTitle,
+					routeTag));
 
 			for (Iterator<Element> j = predictionsElement.element("direction")
 					.elementIterator("prediction"); j.hasNext();) {
@@ -312,11 +385,12 @@ public class NextBusAPI {
 	}
 
 	private void setCachedPredictions(StopPrediction p) {
-		mStopRoutePredictionsCache.put(new RouteStop(p.route, p.stop), p);
+		mCache.mStopRoutePredictionsCache
+				.put(new RouteStop(p.route, p.stop), p);
 	}
 
 	private void updateRouteConfig() {
-		mStopsLastUpdated = new Date();
+		mCache.mStopsLastUpdated = new Date();
 
 		URL u;
 		try {
@@ -326,7 +400,7 @@ public class NextBusAPI {
 			Document stops_document;
 			stops_document = reader.read(u);
 
-			this.mStopsCache = parseStops(stops_document);
+			cacheStops(parseStops(stops_document));
 
 		} catch (DocumentException e) {
 			// TODO Auto-generated catch block
@@ -334,6 +408,14 @@ public class NextBusAPI {
 		} catch (MalformedURLException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
+		}
+	}
+
+	private void cacheStops(Collection<Stop> stops) {
+		mCache.mStopsByTitle.clear();
+
+		for (Stop s : stops) {
+			mCache.mStopsByTitle.put(s.title, s);
 		}
 	}
 }

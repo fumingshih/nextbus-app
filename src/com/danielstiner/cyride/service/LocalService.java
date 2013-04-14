@@ -1,47 +1,36 @@
 package com.danielstiner.cyride.service;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.net.MalformedURLException;
 import java.util.Collection;
 import java.util.Date;
 import java.util.LinkedList;
-import java.util.List;
-import java.util.Queue;
 
 import org.dom4j.DocumentException;
 
-import android.app.AlarmManager;
-import android.app.Notification;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
-import android.content.ComponentName;
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
-import android.content.ServiceConnection;
 import android.location.Location;
 import android.location.LocationManager;
 import android.os.AsyncTask;
 import android.os.Binder;
 import android.os.IBinder;
-import android.os.SystemClock;
-import android.widget.Toast;
 
-import com.danielstiner.cyride.MainActivity;
-import com.danielstiner.cyride.R;
-import com.danielstiner.cyride.R.drawable;
-import com.danielstiner.cyride.R.string;
-import com.danielstiner.cyride.service.IPredictions.StopPredictionsListener;
-import com.danielstiner.cyride.util.Callback;
 import com.danielstiner.cyride.util.CallbackManager;
 import com.danielstiner.cyride.util.Constants;
 import com.danielstiner.cyride.util.Functor1;
 import com.danielstiner.cyride.util.LocationUtil;
 import com.danielstiner.cyride.util.NextBusAPI;
-import com.danielstiner.cyride.util.NextBusAPI.CachePolicy;
+import com.danielstiner.cyride.util.NextBusAPI.Cache;
 import com.danielstiner.cyride.util.NextBusAPI.Prediction;
-import com.danielstiner.cyride.util.NextBusAPI.Route;
 import com.danielstiner.cyride.util.NextBusAPI.Stop;
 import com.danielstiner.cyride.util.NextBusAPI.StopPrediction;
-import com.danielstiner.cyride.util.TextFormat;
 
 public class LocalService extends android.app.Service implements ILocalService {
 
@@ -50,12 +39,13 @@ public class LocalService extends android.app.Service implements ILocalService {
 			return LocalService.this;
 		}
 	}
+
 	@Override
 	public void addNearbyStopPredictionsByRouteListener(
 			StopPredictionsListener predictionListener) {
 		NearbyStopPredictionsByRouteListeners.addListener(predictionListener);
 	}
-	
+
 	private class UpdateNearbyTask extends
 			AsyncTask<Void, Void, Collection<StopPrediction>> {
 
@@ -63,9 +53,7 @@ public class LocalService extends android.app.Service implements ILocalService {
 			LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
 			Location location = LocationUtil.getBestCurrentLocation(lm);
 
-			if (null == location) {
-				return null;
-			}
+			if (null != location) {
 
 			try {
 				Collection<Stop> stops = NextBusAPI.nearestStopPerRoute(
@@ -79,6 +67,8 @@ public class LocalService extends android.app.Service implements ILocalService {
 			} catch (DocumentException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
+			}
+			
 			}
 
 			return new LinkedList<StopPrediction>();
@@ -96,8 +86,8 @@ public class LocalService extends android.app.Service implements ILocalService {
 	 * @return
 	 */
 	public static ServiceConnector<ILocalService> createConnection() {
-		return ServiceConnector
-				.createConnection(LocalService.class, new Functor1<IBinder, ILocalService>() {
+		return ServiceConnector.createConnection(LocalService.class,
+				new Functor1<IBinder, ILocalService>() {
 					@Override
 					public ILocalService apply(IBinder service) {
 						return ((LocalBinder) service).getService();
@@ -108,28 +98,7 @@ public class LocalService extends android.app.Service implements ILocalService {
 
 	private final IBinder mBinder = new LocalBinder();
 
-	private final NextBusAPI mNextBusAPI = new NextBusAPI(Constants.AGENCY,
-			new NextBusAPI.CachePolicy() {
-
-				@Override
-				public boolean shouldUpdateStopPredictions(
-						StopPrediction stopPrediction) {
-					if (stopPrediction == null)
-						return true;
-
-					for (Prediction p : stopPrediction.predictions) {
-						if (new Date().after(p.arrival))
-							return true;
-					}
-
-					return false;
-				}
-
-				@Override
-				public boolean shouldUpdateStops(Date lastUpdate) {
-					return lastUpdate == null;
-				}
-			});
+	private NextBusAPI mNextBusAPI;
 
 	private CallbackManager<Collection<StopPrediction>> NearbyStopPredictionsByRouteListeners = new CallbackManager<Collection<StopPrediction>>();
 
@@ -139,10 +108,104 @@ public class LocalService extends android.app.Service implements ILocalService {
 	}
 
 	@Override
+	public void onCreate() {
+		super.onCreate();
+
+		this.mNextBusAPI = new NextBusAPI(Constants.AGENCY,
+				new NextBusAPI.CachePolicy() {
+
+					@Override
+					public boolean shouldUpdateStopPredictions(
+							StopPrediction stopPrediction) {
+						if (stopPrediction == null)
+							return true;
+
+//						for (Prediction p : stopPrediction.predictions) {
+//							if (new Date().after(p.arrival))
+//								return true;
+//						}
+
+						return false;
+					}
+
+					@Override
+					public boolean shouldUpdateStops(Date lastUpdate) {
+						return lastUpdate == null;
+					}
+
+					@Override
+					public void saveCache(Cache cache) {
+						ObjectOutputStream objectOut = null;
+						try {
+
+							FileOutputStream fileOut = LocalService.this
+									.openFileOutput(
+											Constants.NEXTBUS_API_CACHE_FILENAME,
+											Activity.MODE_PRIVATE);
+							objectOut = new ObjectOutputStream(fileOut);
+							objectOut.writeObject(cache);
+							fileOut.getFD().sync();
+
+						} catch (IOException e) {
+							e.printStackTrace();
+							// TODO: Log
+						} finally {
+							if (objectOut != null) {
+								try {
+									objectOut.close();
+								} catch (IOException e) {
+									// TODO: Log
+								}
+							}
+						}
+					}
+
+					@Override
+					public Cache loadCache() {
+						ObjectInputStream objectIn = null;
+						Cache object = null;
+						try {
+
+							FileInputStream fileIn = LocalService.this
+									.getApplicationContext()
+									.openFileInput(
+											Constants.NEXTBUS_API_CACHE_FILENAME);
+							objectIn = new ObjectInputStream(fileIn);
+							object = (Cache) objectIn.readObject();
+
+						} catch (FileNotFoundException e) {
+							// NOOP
+						} catch (IOException e) {
+							e.printStackTrace();
+						} catch (ClassNotFoundException e) {
+							e.printStackTrace();
+						} finally {
+							if (objectIn != null) {
+								try {
+									objectIn.close();
+								} catch (IOException e) {
+									// TODO: Log
+								}
+							}
+						}
+
+						return object;
+					}
+				});
+	}
+
+	@Override
 	public int onStartCommand(Intent intent, int flags, int startId) {
 		super.onStartCommand(intent, flags, startId);
 
 		return START_NOT_STICKY;
+	}
+
+	@Override
+	public void onDestroy() {
+		super.onDestroy();
+
+		mNextBusAPI.shutdown();
 	}
 
 	@Override
