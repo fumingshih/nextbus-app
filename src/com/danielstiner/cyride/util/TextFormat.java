@@ -33,7 +33,7 @@ public class TextFormat {
 				sb.append(seconds);
 				sb.append('s');
 			} else {
-				sb.append((seconds + 59) / 60); // Round up
+				sb.append((seconds + 29) / 60); // Round
 				sb.append('m');
 			}
 		}
