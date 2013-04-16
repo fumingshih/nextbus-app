@@ -24,6 +24,8 @@ import com.danielstiner.cyride.util.NextBusAPI;
 import com.danielstiner.cyride.util.NextBusAPI.StopPrediction;
 import com.danielstiner.cyride.util.TextFormat;
 
+import de.akquinet.android.androlog.Log;
+
 public class NotificationService extends Service implements INotifications {
 	
 	private final static String CLASS = "com.danielstiner.cyride.service";
@@ -65,6 +67,8 @@ public class NotificationService extends Service implements INotifications {
 	@Override
 	public void onCreate() {
 		super.onCreate();
+		
+		Log.init(this);
 
 		mNM = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
 
