@@ -32,6 +32,13 @@
         </activity>
         <service android:name=".service.LocalService"></service>
         <service android:name=".service.NotificationService"></service>
+        <receiver android:name=".widget.MyWidgetProvider" >
+    <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+    </intent-filter>
+    <meta-data android:name="android.appwidget.provider"
+               android:resource="@xml/homescreenappwidget_info" />
+</receiver>
     </application>
 
 </manifest>
