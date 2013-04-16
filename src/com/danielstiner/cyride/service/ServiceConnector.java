@@ -72,4 +72,10 @@ public class ServiceConnector<ServiceInterface> {
 				getServiceFromBinder);
 	}
 
+	public void maybeNow(Callback<ServiceInterface> callback) {
+		if (mIsBound && null != mBoundService) {
+			callback.run(mBoundService);
+		}
+	}
+
 }

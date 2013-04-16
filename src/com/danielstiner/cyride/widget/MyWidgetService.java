@@ -3,113 +3,158 @@ package com.danielstiner.cyride.widget;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.danielstiner.cyride.R;
-import com.danielstiner.cyride.service.ILocalService;
-import com.danielstiner.cyride.service.IPredictions;
-import com.danielstiner.cyride.service.LocalService;
-import com.danielstiner.cyride.service.ServiceConnector;
-
+import android.annotation.TargetApi;
 import android.appwidget.AppWidgetManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
 import android.widget.RemoteViews;
 
+import com.danielstiner.cyride.R;
+import com.danielstiner.cyride.service.ILocalService;
+import com.danielstiner.cyride.service.LocalService;
+import com.danielstiner.cyride.service.NotificationService;
+import com.danielstiner.cyride.service.ServiceConnector;
+import com.danielstiner.cyride.util.Callback;
+import com.danielstiner.cyride.util.NextBusAPI.StopPrediction;
+import com.danielstiner.cyride.util.TextFormat;
+
+@TargetApi(Build.VERSION_CODES.ICE_CREAM_SANDWICH)
 public class MyWidgetService extends android.widget.RemoteViewsService {
-	
-	ServiceConnector<ILocalService> conn;
-	
-    @Override
-    public RemoteViewsFactory onGetViewFactory(Intent intent) {
-        return new MyRemoteViewsFactory(this.getApplicationContext(), intent);
-    }
+
+	private final static String CLASS = "com.danielstiner.cyride.service";
+
+	private static final String INTENT_EXTRA_UPDATE_NEARBY = CLASS
+			+ ".update_nearby";
+
+	public static void updateNearbyWidgets(Context context) {
+		Intent i = new Intent(context, MyWidgetService.class);
+		i.putExtra(INTENT_EXTRA_UPDATE_NEARBY, true);
+		context.startService(i);
+	}
+
+	@Override
+	public int onStartCommand(Intent intent, int flags, int startId) {
+
+		handleIntent(intent);
+
+		return super.onStartCommand(intent, flags, startId);
+	}
+
+	private void handleIntent(Intent intent) {
+		if (intent.getBooleanExtra(INTENT_EXTRA_UPDATE_NEARBY, false)) {
+			updateWidgets();
+		}
+	}
+
+	public void updateWidgets() {
+		AppWidgetManager mgr = AppWidgetManager.getInstance(this);
+		mgr.notifyAppWidgetViewDataChanged(
+				mgr.getAppWidgetIds(new ComponentName(this,
+						MyWidgetProvider.class)), R.id.widget_listview);
+	}
+
+	@Override
+	public RemoteViewsFactory onGetViewFactory(Intent intent) {
+		return new MyRemoteViewsFactory(this.getApplicationContext(), intent);
+	}
 }
 
-class MyRemoteViewsFactory implements android.widget.RemoteViewsService.RemoteViewsFactory {
-    private static final int mCount = 10;
-    private List<com.danielstiner.cyride.util.NextBusAPI.StopPrediction> mWidgetItems = 
-    		new ArrayList<com.danielstiner.cyride.util.NextBusAPI.StopPrediction>();
-    private Context mContext;
-    private int mAppWidgetId;
-    ServiceConnector<ILocalService> mConn = LocalService.createConnection();
-    
-    public MyRemoteViewsFactory(Context context, Intent intent) {
-        mContext = context;
-        mAppWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,
-                AppWidgetManager.INVALID_APPWIDGET_ID);
-    }
+class MyRemoteViewsFactory implements
+		android.widget.RemoteViewsService.RemoteViewsFactory {
 
-    // Initialize the data set.
-        public void onCreate() {
-        	mConn.bind(mContext);
-            // In onCreate() you set up any connections / cursors to your data source. Heavy lifting,
-            // for example downloading or creating content etc, should be deferred to onDataSetChanged()
-            // or getViewAt(). Taking more than 20 seconds in this call will result in an ANR.
-        	//TODO - do this shit
-        }
-    
-        // Given the position (index) of a WidgetItem in the array, use the item's text value in 
-        // combination with the app widget item XML file to construct a RemoteViews object.
-        public RemoteViews getViewAt(int position) {
-            // position will always range from 0 to getCount() - 1.
-    
-            // Construct a RemoteViews item based on the app widget item XML file, and set the
-            // text based on the position.
-            RemoteViews rv = new RemoteViews(mContext.getPackageName(), R.layout.stop_prediction_list_item);
-            rv.setTextViewText(R.id.text_route, mWidgetItems.get(position).toString());
-    
-            // Next, set a fill-intent, which will be used to fill in the pending intent template
-            // that is set on the collection view in StackWidgetProvider.
-            Bundle extras = new Bundle();
-            extras.putInt(MyWidgetProvider.EXTRA_ITEM, position);
-            Intent fillInIntent = new Intent();
-            fillInIntent.putExtras(extras);
-            // Make it possible to distinguish the individual on-click
-            // action of a given item
-            rv.setOnClickFillInIntent(R.id.text_route, fillInIntent);
-                
-            // Return the RemoteViews object.
-            return rv;
-        }
+	private ServiceConnector<ILocalService> mConn = LocalService
+			.createConnection();
 
-		@Override
-		public int getCount() {
-			// TODO Auto-generated method stub
-			return 0;
-		}
+	private Context mContext;
+	private int mAppWidgetId;
 
-		@Override
-		public long getItemId(int position) {
-			// TODO Auto-generated method stub
-			return 0;
-		}
+	private final List<StopPrediction> mRouteStopPredictions = new ArrayList<StopPrediction>();
 
-		@Override
-		public RemoteViews getLoadingView() {
-			// TODO Auto-generated method stub
-			return null;
-		}
+	public MyRemoteViewsFactory(Context context, Intent intent) {
+		mContext = context;
+		mAppWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,
+				AppWidgetManager.INVALID_APPWIDGET_ID);
+	}
 
-		@Override
-		public int getViewTypeCount() {
-			// TODO Auto-generated method stub
-			return 0;
-		}
+	public void onCreate() {
+		mConn.bind(mContext);
+	}
 
-		@Override
-		public boolean hasStableIds() {
-			// TODO Auto-generated method stub
-			return false;
-		}
+	// Given the position (index) of a WidgetItem in the array, use the
+	// item's text value in
+	// combination with the app widget item XML file to construct a
+	// RemoteViews object.
+	public RemoteViews getViewAt(int position) {
 
-		@Override
-		public void onDataSetChanged() {
-			// TODO Auto-generated method stub
-			
-		}
+		StopPrediction p = mRouteStopPredictions.get(position);
 
-		@Override
-		public void onDestroy() {
-			mConn.unbind(mContext);
-		}
-    }
+		// Construct a RemoteViews item based on the app widget item XML
+		// file, and set the
+		// text based on the position.
+		RemoteViews rv = new RemoteViews(mContext.getPackageName(),
+				R.layout.stop_prediction_list_item);
+		rv.setTextViewText(R.id.text_route, TextFormat.toString(p.route));
+		rv.setTextViewText(R.id.text_stop, TextFormat.toString(p.stop));
+		rv.setTextViewText(R.id.text_times, TextFormat.toString(p.predictions));
+
+		// Next, set a fill-intent, which will be used to fill in the
+		// pending intent template
+		// that is set on the collection view in StackWidgetProvider.
+		Bundle extras = new Bundle();
+		extras.putInt(MyWidgetProvider.EXTRA_ITEM, position);
+		NotificationService.putExtraRouteStop(extras, p.routestop);
+		Intent fillInIntent = new Intent();
+		fillInIntent.putExtras(extras);
+		// Make it possible to distinguish the individual on-click
+		// action of a given item
+		rv.setOnClickFillInIntent(R.id.text_route, fillInIntent);
+
+		// Return the RemoteViews object.
+		return rv;
+	}
+
+	@Override
+	public int getCount() {
+		return mRouteStopPredictions.size();
+	}
+
+	@Override
+	public long getItemId(int position) {
+		return position;
+	}
+
+	@Override
+	public RemoteViews getLoadingView() {
+		return null;
+	}
+
+	@Override
+	public int getViewTypeCount() {
+		return 1;
+	}
+
+	@Override
+	public boolean hasStableIds() {
+		return false;
+	}
+
+	@Override
+	public void onDataSetChanged() {
+		mConn.maybeNow(new Callback<ILocalService>() {
+			@Override
+			public void run(ILocalService predictions) {
+				mRouteStopPredictions.clear();
+				mRouteStopPredictions.addAll(predictions
+						.getLatestNearbyStopPredictions());
+			}
+		});
+	}
+
+	@Override
+	public void onDestroy() {
+		mConn.unbind(mContext);
+	}
+}

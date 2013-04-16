@@ -11,6 +11,7 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Binder;
+import android.os.Bundle;
 import android.os.IBinder;
 import android.os.SystemClock;
 import android.support.v4.app.NotificationCompat;
@@ -33,7 +34,7 @@ public class NotificationService extends Service {
 
 	private final static int NOTIFICATION = R.string.local_service_started;
 
-	private static final String INTENT_EXTRA_SHOW_STOP_PREDICTIONS = CLASS
+	public static final String INTENT_EXTRA_SHOW_STOP_PREDICTIONS = CLASS
 			+ ".show_routestop_predictions";
 
 	private final ServiceConnector<ILocalService> mPredictionsService = LocalService
@@ -177,6 +178,10 @@ public class NotificationService extends Service {
 								PendingIntent.FLAG_UPDATE_CURRENT));
 		// setUsesChronometer
 
+	}
+
+	public static void putExtraRouteStop(Bundle extras, RouteStop routestop) {
+		extras.putSerializable(NotificationService.INTENT_EXTRA_SHOW_STOP_PREDICTIONS, routestop);
 	}
 
 	// private void showNotification() {
