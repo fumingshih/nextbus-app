@@ -4,7 +4,6 @@ import java.io.Serializable;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Date;
@@ -21,13 +20,8 @@ import org.dom4j.DocumentException;
 import org.dom4j.Element;
 import org.dom4j.io.SAXReader;
 
-import com.danielstiner.cyride.util.NextBusAPI.RouteStop;
-import com.danielstiner.cyride.util.NextBusAPI.StopPrediction;
-
 import android.graphics.Color;
 import android.location.Location;
-import android.os.Parcel;
-import android.os.Parcelable;
 
 public class NextBusAPI {
 

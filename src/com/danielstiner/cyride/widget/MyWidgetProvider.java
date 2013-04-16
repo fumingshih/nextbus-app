@@ -1,8 +1,5 @@
 package com.danielstiner.cyride.widget;
 
-import com.danielstiner.cyride.MainActivity;
-import com.danielstiner.cyride.R;
-
 import android.annotation.TargetApi;
 import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;
@@ -12,6 +9,9 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.widget.RemoteViews;
+
+import com.danielstiner.cyride.MainActivity;
+import com.danielstiner.cyride.R;
 
 @TargetApi(Build.VERSION_CODES.ICE_CREAM_SANDWICH)
 public class MyWidgetProvider extends AppWidgetProvider {

@@ -1,11 +1,8 @@
 package com.danielstiner.cyride.util;
 
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
-
-import org.joda.time.DateTime;
 
 import com.danielstiner.cyride.util.NextBusAPI.Prediction;
 import com.danielstiner.cyride.util.NextBusAPI.Route;

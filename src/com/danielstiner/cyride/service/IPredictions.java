@@ -1,7 +1,6 @@
 package com.danielstiner.cyride.service;
 
 import java.util.Collection;
-import java.util.List;
 
 import com.danielstiner.cyride.util.Callback;
 import com.danielstiner.cyride.util.NextBusAPI.RouteStop;

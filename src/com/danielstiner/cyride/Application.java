@@ -1,7 +1,8 @@
 package com.danielstiner.cyride;
 
-import org.acra.*;
-import org.acra.annotation.*;
+import org.acra.ACRA;
+import org.acra.ReportingInteractionMode;
+import org.acra.annotation.ReportsCrashes;
 
 @ReportsCrashes(formKey = "", // will not be used
 mailTo = "daniel.stiner+nextbusapp@gmail.com",

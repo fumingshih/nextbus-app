@@ -14,7 +14,6 @@ import java.util.Map;
 import android.app.Activity;
 import android.content.Context;
 
-import com.danielstiner.cyride.service.LocalService;
 import com.danielstiner.cyride.util.NextBusAPI.Route;
 import com.danielstiner.cyride.util.NextBusAPI.RouteStop;
 import com.danielstiner.cyride.util.NextBusAPI.Stop;

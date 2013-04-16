@@ -1,9 +1,5 @@
 package com.danielstiner.cyride.service;
 
-import java.util.LinkedList;
-import java.util.List;
-
-import android.app.AlarmManager;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -13,14 +9,11 @@ import android.content.Intent;
 import android.os.Binder;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.os.SystemClock;
 import android.support.v4.app.NotificationCompat;
-import android.widget.Toast;
 
 import com.danielstiner.cyride.MainActivity;
 import com.danielstiner.cyride.R;
 import com.danielstiner.cyride.util.Callback;
-import com.danielstiner.cyride.util.Constants;
 import com.danielstiner.cyride.util.NextBusAPI;
 import com.danielstiner.cyride.util.NextBusAPI.RouteStop;
 import com.danielstiner.cyride.util.NextBusAPI.StopPrediction;
