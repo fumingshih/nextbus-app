@@ -37,28 +37,6 @@ public class NextBusAPI {
 
 		boolean shouldUpdateStops(Date lastUpdate);
 
-		void saveCache(Cache cache);
-
-		Cache loadCache();
-
-	}
-
-	public static class Cache implements Serializable {
-		public Cache(String agency) {
-			this.agency = agency;
-		}
-
-		private String agency;
-
-		private static final long serialVersionUID = -5003315853529912609L;
-
-		private Map<String, Route> mRoutes = new HashMap<String, NextBusAPI.Route>();
-
-		private Map<RouteStop, StopPrediction> mStopRoutePredictionsCache = new HashMap<NextBusAPI.RouteStop, NextBusAPI.StopPrediction>();
-
-		private Map<String, Stop> mStopsByTitle = new HashMap<String, NextBusAPI.Stop>();
-
-		private Date mStopsLastUpdated;
 	}
 
 	public static class Prediction implements Serializable {
@@ -206,51 +184,17 @@ public class NextBusAPI {
 
 	private String mAgency;
 
-	private CachePolicy mCachePolicy;
-	private Cache mCache;
-
-	public NextBusAPI(String agency, CachePolicy cachingPolicy) {
-		mCachePolicy = cachingPolicy;
-		setAgency(agency);
-	}
-
-	private void setAgency(String agency) {
+	public NextBusAPI(String agency) {
 		mAgency = agency;
-
-		mCache = mCachePolicy.loadCache();
-		if (mCache == null || !agency.equals(mCache.agency))
-			mCache = new Cache(agency);
-	}
-
-	public void shutdown() {
-		mCachePolicy.saveCache(mCache);
-	}
-
-	private StopPrediction getCachedPredictions(Stop s, Route r) {
-		return mCache.mStopRoutePredictionsCache.get(new RouteStop(r, s));
 	}
 
 	private Route getRoute(String routeTag, String routeTitle, int routeColor) {
-		Route r = mCache.mRoutes.get(routeTag);
-		if (r == null) {
-			r = new Route(routeTag, routeTitle, routeColor);
-			mCache.mRoutes.put(routeTag, r);
-		}
-
-		return r;
+		return new Route(routeTag, routeTitle, routeColor);
 	}
 
-	private RouteStop getRouteStop(String stopTitle, String routeTag) {
-		Route r = mCache.mRoutes.get(routeTag);
-		Stop s = mCache.mStopsByTitle.get(stopTitle);
-
-		// TODO Better errors
-		if (r == null) {
-			throw new IllegalArgumentException();
-		}
-		if (s == null) {
-			throw new IllegalArgumentException();
-		}
+	private RouteStop getRouteStop(String stopTitle, String routeTag, String routeTitle) {
+		Route r = getRoute(routeTag, routeTitle, 0);
+		Stop s = new Stop(stopTitle);
 
 		return new RouteStop(r, s);
 	}
@@ -264,17 +208,10 @@ public class NextBusAPI {
 		StringBuilder queryParams = new StringBuilder();
 		for (Stop s : stops) {
 			for (Route r : s.routes) {
-
-				StopPrediction c = getCachedPredictions(s, r);
-
-				if (mCachePolicy.shouldUpdateStopPredictions(c)) {
-					queryParams.append("&stops=");
-					queryParams.append(r.tag);
-					queryParams.append("|");
-					queryParams.append(s.tag);
-				} else {
-					predictions.add(c);
-				}
+				queryParams.append("&stops=");
+				queryParams.append(r.tag);
+				queryParams.append("|");
+				queryParams.append(s.tag);
 			}
 		}
 
@@ -289,21 +226,20 @@ public class NextBusAPI {
 
 		Collection<StopPrediction> newPredictions = parsePredictions(predictions_document);
 
-		for (StopPrediction p : newPredictions) {
-			setCachedPredictions(p);
-		}
 		predictions.addAll(newPredictions);
 
 		return predictions;
 	}
 
-	public Collection<Stop> getStops() {
+	public Collection<Stop> getStops() throws MalformedURLException, DocumentException {
 
-		if (mCachePolicy.shouldUpdateStops(mCache.mStopsLastUpdated)) {
-			updateRouteConfig();
-		}
+		URL u = Urls.getRouteConfigUrl(this.mAgency);
 
-		return mCache.mStopsByTitle.values();
+		SAXReader reader = new SAXReader();
+		Document stops_document;
+		stops_document = reader.read(u);
+
+		return parseStops(stops_document);
 	}
 
 	private List<StopPrediction> parsePredictions(Document predictions_document) {
@@ -328,7 +264,7 @@ public class NextBusAPI {
 				continue;
 
 			StopPrediction p = new StopPrediction(getRouteStop(stopTitle,
-					routeTag));
+					routeTag, routeTitle));
 
 			for (Iterator<Element> j = predictionsElement.element("direction")
 					.elementIterator("prediction"); j.hasNext();) {
@@ -385,66 +321,5 @@ public class NextBusAPI {
 		}
 
 		return stops;
-	}
-
-	private void setCachedPredictions(StopPrediction p) {
-		mCache.mStopRoutePredictionsCache
-				.put(new RouteStop(p.route, p.stop), p);
-	}
-
-	private void updateRouteConfig() {
-		mCache.mStopsLastUpdated = new Date();
-
-		URL u;
-		try {
-			u = Urls.getRouteConfigUrl(this.mAgency);
-
-			SAXReader reader = new SAXReader();
-			Document stops_document;
-			stops_document = reader.read(u);
-
-			cacheStops(parseStops(stops_document));
-
-		} catch (DocumentException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (MalformedURLException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-	}
-
-	private void cacheStops(Collection<Stop> stops) {
-		mCache.mStopsByTitle.clear();
-
-		for (Stop s : stops) {
-			mCache.mStopsByTitle.put(s.title, s);
-		}
-	}
-
-	public StopPrediction getRouteStopPrediction(RouteStop rs)
-			throws MalformedURLException, DocumentException {
-
-		StopPrediction c = getCachedPredictions(rs.stop, rs.route);
-
-		if (mCachePolicy.shouldUpdateStopPredictions(c)) {
-
-			final URL u = Urls.getMultiStopUrl(this.mAgency, "&stops="
-					+ rs.route.tag + "|" + rs.stop.tag);
-
-			SAXReader reader = new SAXReader();
-			Document predictions_document = reader.read(u);
-
-			Collection<StopPrediction> newPredictions = parsePredictions(predictions_document);
-
-			for (StopPrediction p : newPredictions) {
-				setCachedPredictions(p);
-			}
-
-			c = newPredictions.iterator().next();
-
-		}
-
-		return c;
 	}
 }

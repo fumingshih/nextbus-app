@@ -21,5 +21,13 @@ public class CallbackManager<T> {
 			to.run(value);
 		}
 	}
+	
+	public int count() {
+		return listeners.size();
+	}
+
+	public boolean active() {
+		return count() > 0;
+	}
 
 }

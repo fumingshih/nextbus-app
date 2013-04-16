@@ -45,6 +45,30 @@ public class TextFormat {
 		return sb.substring(1);
 	}
 
+	public static CharSequence toString(Prediction p) {
+		if (p == null)
+			return null;
+
+		StringBuilder sb = new StringBuilder();
+
+		long seconds = (p.arrival.getTime() - new Date().getTime()) / 1000;
+
+		if (seconds <= 0) {
+			if (seconds < -10)
+				return null;
+			else
+				sb.append("arriving");
+		} else if (seconds <= 60) {
+			sb.append(seconds);
+			sb.append('s');
+		} else {
+			sb.append((seconds + 29) / 60); // Round
+			sb.append('m');
+		}
+
+		return sb.toString();
+	}
+
 	public static CharSequence toString(Route route) {
 		return (route == null) ? null : route.title;
 	}
