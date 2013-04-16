@@ -32,6 +32,8 @@ import com.danielstiner.cyride.util.NextBusAPI.Prediction;
 import com.danielstiner.cyride.util.NextBusAPI.Stop;
 import com.danielstiner.cyride.util.NextBusAPI.StopPrediction;
 
+import de.akquinet.android.androlog.Log;
+
 public class LocalService extends android.app.Service implements ILocalService {
 
 	public class LocalBinder extends Binder {
@@ -62,11 +64,9 @@ public class LocalService extends android.app.Service implements ILocalService {
 				return mNextBusAPI.getStopPredictions(stops);
 
 			} catch (MalformedURLException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
+				Log.e(this, "UpdateNearbyTask.doInBackground objectIn.close", e);
 			} catch (DocumentException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
+				Log.e(this, "UpdateNearbyTask.doInBackground objectIn.close", e);
 			}
 			
 			}
@@ -110,6 +110,8 @@ public class LocalService extends android.app.Service implements ILocalService {
 	@Override
 	public void onCreate() {
 		super.onCreate();
+		
+		Log.init(this);
 
 		this.mNextBusAPI = new NextBusAPI(Constants.AGENCY,
 				new NextBusAPI.CachePolicy() {
@@ -147,14 +149,13 @@ public class LocalService extends android.app.Service implements ILocalService {
 							fileOut.getFD().sync();
 
 						} catch (IOException e) {
-							e.printStackTrace();
-							// TODO: Log
+							Log.e(this, "mNextBusAPI.saveCache", e);
 						} finally {
 							if (objectOut != null) {
 								try {
 									objectOut.close();
 								} catch (IOException e) {
-									// TODO: Log
+									Log.e(this, "mNextBusAPI.saveCache objectOut.close", e);
 								}
 							}
 						}
@@ -176,15 +177,15 @@ public class LocalService extends android.app.Service implements ILocalService {
 						} catch (FileNotFoundException e) {
 							// NOOP
 						} catch (IOException e) {
-							e.printStackTrace();
+							Log.e(this, "mNextBusAPI.loadCache", e);
 						} catch (ClassNotFoundException e) {
-							e.printStackTrace();
+							Log.e(this, "mNextBusAPI.loadCache", e);
 						} finally {
 							if (objectIn != null) {
 								try {
 									objectIn.close();
 								} catch (IOException e) {
-									// TODO: Log
+									Log.e(this, "mNextBusAPI.loadCache objectIn.close", e);
 								}
 							}
 						}

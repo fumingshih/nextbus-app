@@ -2,6 +2,8 @@ package com.danielstiner.cyride;
 
 import java.util.Locale;
 
+import de.akquinet.android.androlog.Log;
+
 import android.app.ActionBar;
 import android.app.FragmentTransaction;
 import android.os.Bundle;
@@ -112,6 +114,8 @@ public class MainActivity extends FragmentActivity implements
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
+		
+		Log.init(this);
 
 		// Set up the action bar.
 		final ActionBar actionBar = getActionBar();
