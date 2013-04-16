@@ -40,7 +40,7 @@ public class NextBusAPI {
 
 	}
 
-	public static class Cache implements DataTransferObject {
+	public static class Cache implements Serializable {
 		public Cache(String agency) {
 			this.agency = agency;
 		}
@@ -58,11 +58,7 @@ public class NextBusAPI {
 		private Date mStopsLastUpdated;
 	}
 
-	private interface DataTransferObject extends Serializable {
-
-	}
-
-	public static class Prediction implements DataTransferObject {
+	public static class Prediction implements Serializable {
 		private static final long serialVersionUID = -2480643929223384105L;
 
 		public Date arrival;
@@ -72,7 +68,9 @@ public class NextBusAPI {
 		}
 	}
 
-	public static class Route {
+	public static class Route implements Serializable {
+		private static final long serialVersionUID = 7521922708491520903L;
+
 		public final int color;
 
 		public String direction;
@@ -86,7 +84,7 @@ public class NextBusAPI {
 		}
 	}
 
-	public static class RouteStop implements DataTransferObject {
+	public static class RouteStop implements Serializable {
 		private static final long serialVersionUID = 7072146394309144554L;
 		
 		public final Route route;
@@ -98,7 +96,8 @@ public class NextBusAPI {
 		}
 	}
 
-	public static class Stop {
+	public static class Stop implements Serializable {
+		private static final long serialVersionUID = -426734608965295351L;
 
 		double latitude;
 
@@ -115,8 +114,9 @@ public class NextBusAPI {
 		}
 	}
 
-	public static class StopPrediction {
-
+	public static class StopPrediction implements Serializable {
+		private static final long serialVersionUID = -5798823753170327173L;
+		
 		public StopPrediction(RouteStop routestop) {
 			this.routestop = routestop;
 			this.route = routestop.route;
