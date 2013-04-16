@@ -1,14 +1,19 @@
 package com.danielstiner.cyride.util;
 
+import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
+
+import org.joda.time.DateTime;
 
 import com.danielstiner.cyride.util.NextBusAPI.Prediction;
 import com.danielstiner.cyride.util.NextBusAPI.Route;
 import com.danielstiner.cyride.util.NextBusAPI.Stop;
 
 public class TextFormat {
+	
+	private static final SimpleDateFormat ABSOLUTE_TIME_FORMAT = new SimpleDateFormat("HH:mm");
 
 	public static CharSequence distanceToString(float distance) {
 		return Float.toString(distance) + "ft";
@@ -67,6 +72,15 @@ public class TextFormat {
 		}
 
 		return sb.toString();
+	}
+	
+	public static CharSequence singleAbsoluteTime(List<Prediction> predictions) {
+		if (predictions == null || predictions.isEmpty())
+			return null;
+		
+		Prediction p = predictions.get(0);
+		
+		return ABSOLUTE_TIME_FORMAT.format(p.arrival);
 	}
 
 	public static CharSequence toString(Route route) {
