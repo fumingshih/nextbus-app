@@ -13,7 +13,6 @@ import android.widget.ArrayAdapter;
 import android.widget.ListView;
 
 import com.danielstiner.cyride.service.ILocalService;
-import com.danielstiner.cyride.service.INotifications;
 import com.danielstiner.cyride.service.IPredictions.StopPredictionsListener;
 import com.danielstiner.cyride.service.LocalService;
 import com.danielstiner.cyride.service.NotificationService;
