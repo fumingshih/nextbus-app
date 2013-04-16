@@ -249,10 +249,10 @@ public class NextBusAPI {
 			String routeTag = predictionsElement.attributeValue("routeTag");
 			String routeTitle = predictionsElement.attributeValue("routeTitle");
 			String stopTitle = predictionsElement.attributeValue("stopTitle");
-			String dirTitleBecauseNoPredictions = predictionsElement
-					.attributeValue("dirTitleBecauseNoPredictions");
-			String agencyTitle = predictionsElement
-					.attributeValue("agencyTitle");
+//			String dirTitleBecauseNoPredictions = predictionsElement
+//					.attributeValue("dirTitleBecauseNoPredictions");
+//			String agencyTitle = predictionsElement
+//					.attributeValue("agencyTitle");
 
 			if (null == predictionsElement.element("direction"))
 				continue;

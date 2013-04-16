@@ -1,6 +1,5 @@
 package com.danielstiner.cyride.service;
 
-import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
@@ -36,9 +35,7 @@ public class NotificationService extends Service {
 	private NotificationManager mNotificationManager;
 
 	private NotificationCompat.Builder mBuilder;
-
-	private Notification mNotification;
-
+	
 	private boolean mNotificationInProgress = false;
 
 	public static void showStopPredictions(Context context,
