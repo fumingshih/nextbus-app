@@ -1,5 +1,6 @@
 package com.danielstiner.cyride.service;
 
+import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -18,9 +19,11 @@ import android.widget.Toast;
 import com.danielstiner.cyride.MainActivity;
 import com.danielstiner.cyride.NearbyStopsFragment;
 import com.danielstiner.cyride.R;
+import com.danielstiner.cyride.util.Callback;
 import com.danielstiner.cyride.util.Constants;
 import com.danielstiner.cyride.util.Functor1;
 import com.danielstiner.cyride.util.NextBusAPI;
+import com.danielstiner.cyride.util.NextBusAPI.RouteStop;
 import com.danielstiner.cyride.util.NextBusAPI.StopPrediction;
 import com.danielstiner.cyride.util.TextFormat;
 
@@ -37,6 +40,8 @@ public class NotificationService extends Service implements INotifications {
 
 	private final List<StopPrediction> mNotificationStops = new LinkedList<StopPrediction>();
 
+	private final ServiceConnector<ILocalService> mPredictionsService = LocalService.createConnection();
+	
 	private NotificationManager mNM;
 
 	private Notification mNotification;
@@ -69,6 +74,8 @@ public class NotificationService extends Service implements INotifications {
 		super.onCreate();
 		
 		Log.init(this);
+		
+		mPredictionsService.bind(this);
 
 		mNM = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
 
@@ -86,9 +93,35 @@ public class NotificationService extends Service implements INotifications {
 	}
 
 	private void handleIntent(Intent intent) {
-		// TODO: Parse intent, either a start service or a display bus
-		showNotification();
+		
+		if(intent.hasExtra(INTENT_EXTRA_SHOW_STOP_PREDICTIONS)) {
+			// Should parse out and show intent
+			RouteStop rs = (RouteStop) intent.getSerializableExtra(INTENT_EXTRA_SHOW_STOP_PREDICTIONS);
+			showRouteStop(rs);
+		}
+	}
 
+	private void showRouteStop(final RouteStop rs) {
+		
+		mPredictionsService.schedule(new Callback<ILocalService>() {
+			@Override
+			public void run(ILocalService predictions) {
+				predictions.getPredictionsForRouteStop(rs, new Callback<StopPrediction>() {
+					
+					@Override
+					public void run(StopPrediction prediction) {
+						setRouteStopPredictions(rs, prediction);
+					}					
+				});
+			}
+		});
+	}
+	
+	private void setRouteStopPredictions(RouteStop rs,
+			StopPrediction prediction) {
+		mNotificationStops.clear();
+		mNotificationStops.add(prediction);
+		showNotification();
 	}
 
 	public class LocalBinder extends Binder {
@@ -96,25 +129,7 @@ public class NotificationService extends Service implements INotifications {
 			return NotificationService.this;
 		}
 	}
-
-	// /**
-	// * Call at most once per context
-	// *
-	// * @param context
-	// * @return
-	// */
-	// public static ServiceConnector<INotifications> createConnection() {
-	// return ServiceConnector
-	// .createConnection(NotificationService.class, new Functor1<IBinder,
-	// INotifications>() {
-	// @Override
-	// public INotifications apply(IBinder service) {
-	// return ((LocalBinder) service).getService();
-	// }
-	//
-	// });
-	// }
-
+	
 	private final IBinder mBinder = new LocalBinder();
 
 	@Override
@@ -127,6 +142,8 @@ public class NotificationService extends Service implements INotifications {
 		super.onDestroy();
 
 		mNM.cancel(NOTIFICATION);
+		
+		mPredictionsService.unbind(this);
 
 		// Tell the user we stopped.
 		Toast.makeText(this, R.string.local_service_stopped, Toast.LENGTH_SHORT)

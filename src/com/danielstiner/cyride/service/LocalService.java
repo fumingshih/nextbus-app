@@ -10,6 +10,7 @@ import java.net.MalformedURLException;
 import java.util.Collection;
 import java.util.Date;
 import java.util.LinkedList;
+import java.util.List;
 
 import org.dom4j.DocumentException;
 
@@ -22,6 +23,7 @@ import android.os.AsyncTask;
 import android.os.Binder;
 import android.os.IBinder;
 
+import com.danielstiner.cyride.util.Callback;
 import com.danielstiner.cyride.util.CallbackManager;
 import com.danielstiner.cyride.util.Constants;
 import com.danielstiner.cyride.util.Functor1;
@@ -29,6 +31,7 @@ import com.danielstiner.cyride.util.LocationUtil;
 import com.danielstiner.cyride.util.NextBusAPI;
 import com.danielstiner.cyride.util.NextBusAPI.Cache;
 import com.danielstiner.cyride.util.NextBusAPI.Prediction;
+import com.danielstiner.cyride.util.NextBusAPI.RouteStop;
 import com.danielstiner.cyride.util.NextBusAPI.Stop;
 import com.danielstiner.cyride.util.NextBusAPI.StopPrediction;
 
@@ -46,6 +49,32 @@ public class LocalService extends android.app.Service implements ILocalService {
 	public void addNearbyStopPredictionsByRouteListener(
 			StopPredictionsListener predictionListener) {
 		NearbyStopPredictionsByRouteListeners.addListener(predictionListener);
+	}
+	
+	private class GetRouteStopPredictionTask extends AsyncTask<Object, Void, StopPrediction> {
+
+		private Callback<StopPrediction> mCallback;
+		
+		@Override
+		protected StopPrediction doInBackground(Object... params) {
+			RouteStop rs = (RouteStop) params[0];
+			mCallback = (Callback<StopPrediction>) params[1];
+			
+			try {
+				return mNextBusAPI.getRouteStopPrediction(rs);
+			} catch (MalformedURLException e) {
+				Log.e(this, "GetRouteStopPredictionTask.doInBackground objectIn.close", e);
+			} catch (DocumentException e) {
+				Log.e(this, "GetRouteStopPredictionTask.doInBackground objectIn.close", e);
+			}
+			
+			return null;
+		}
+		
+		protected void onPostExecute(StopPrediction predictions) {
+			mCallback.run(predictions);
+		}
+		
 	}
 
 	private class UpdateNearbyTask extends
@@ -219,5 +248,10 @@ public class LocalService extends android.app.Service implements ILocalService {
 	@Override
 	public void updateNearbyStopPredictionsByRoute() {
 		new UpdateNearbyTask().execute();
+	}
+
+	@Override
+	public void getPredictionsForRouteStop(RouteStop rs, Callback<StopPrediction> callback) {
+		new GetRouteStopPredictionTask().execute(rs, callback);
 	}
 }

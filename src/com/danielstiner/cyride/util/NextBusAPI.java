@@ -21,6 +21,9 @@ import org.dom4j.DocumentException;
 import org.dom4j.Element;
 import org.dom4j.io.SAXReader;
 
+import com.danielstiner.cyride.util.NextBusAPI.RouteStop;
+import com.danielstiner.cyride.util.NextBusAPI.StopPrediction;
+
 import android.graphics.Color;
 import android.location.Location;
 import android.os.Parcel;
@@ -44,7 +47,7 @@ public class NextBusAPI {
 		public Cache(String agency) {
 			this.agency = agency;
 		}
-		
+
 		private String agency;
 
 		private static final long serialVersionUID = -5003315853529912609L;
@@ -86,7 +89,7 @@ public class NextBusAPI {
 
 	public static class RouteStop implements Serializable {
 		private static final long serialVersionUID = 7072146394309144554L;
-		
+
 		public final Route route;
 		public final Stop stop;
 
@@ -116,7 +119,7 @@ public class NextBusAPI {
 
 	public static class StopPrediction implements Serializable {
 		private static final long serialVersionUID = -5798823753170327173L;
-		
+
 		public StopPrediction(RouteStop routestop) {
 			this.routestop = routestop;
 			this.route = routestop.route;
@@ -218,7 +221,7 @@ public class NextBusAPI {
 		if (mCache == null || !agency.equals(mCache.agency))
 			mCache = new Cache(agency);
 	}
-	
+
 	public void shutdown() {
 		mCachePolicy.saveCache(mCache);
 	}
@@ -417,5 +420,31 @@ public class NextBusAPI {
 		for (Stop s : stops) {
 			mCache.mStopsByTitle.put(s.title, s);
 		}
+	}
+
+	public StopPrediction getRouteStopPrediction(RouteStop rs)
+			throws MalformedURLException, DocumentException {
+
+		StopPrediction c = getCachedPredictions(rs.stop, rs.route);
+
+		if (mCachePolicy.shouldUpdateStopPredictions(c)) {
+
+			final URL u = Urls.getMultiStopUrl(this.mAgency, "&stops="
+					+ rs.route.tag + "|" + rs.stop.tag);
+
+			SAXReader reader = new SAXReader();
+			Document predictions_document = reader.read(u);
+
+			Collection<StopPrediction> newPredictions = parsePredictions(predictions_document);
+
+			for (StopPrediction p : newPredictions) {
+				setCachedPredictions(p);
+			}
+
+			c = newPredictions.iterator().next();
+
+		}
+
+		return c;
 	}
 }
