@@ -30,9 +30,11 @@ public class MyWidgetService extends android.widget.RemoteViewsService {
 			+ ".update_nearby";
 
 	public static void updateNearbyWidgets(Context context) {
-		Intent i = new Intent(context, MyWidgetService.class);
-		i.putExtra(INTENT_EXTRA_UPDATE_NEARBY, true);
-		context.startService(i);
+		if (android.os.Build.VERSION.SDK_INT >= 11) {
+			Intent i = new Intent(context, MyWidgetService.class);
+			i.putExtra(INTENT_EXTRA_UPDATE_NEARBY, true);
+			context.startService(i);
+		}
 	}
 
 	@Override
@@ -44,9 +46,10 @@ public class MyWidgetService extends android.widget.RemoteViewsService {
 	}
 
 	private void handleIntent(Intent intent) {
-		
-		if(intent == null) return;
-		
+
+		if (intent == null)
+			return;
+
 		if (intent.getBooleanExtra(INTENT_EXTRA_UPDATE_NEARBY, false)) {
 			updateWidgets();
 		}
@@ -101,7 +104,8 @@ class MyRemoteViewsFactory implements
 				R.layout.stop_prediction_list_item);
 		rv.setTextViewText(R.id.text_route, TextFormat.toString(p.route));
 		rv.setTextViewText(R.id.text_stop, TextFormat.toString(p.stop));
-		rv.setTextViewText(R.id.text_times, TextFormat.singleAbsoluteTime(p.predictions));
+		rv.setTextViewText(R.id.text_times,
+				TextFormat.singleAbsoluteTime(p.predictions));
 
 		// Next, set a fill-intent, which will be used to fill in the
 		// pending intent template
