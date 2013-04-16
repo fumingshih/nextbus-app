@@ -120,10 +120,10 @@ public class LocalService extends android.app.Service implements ILocalService {
 						if (stopPrediction == null)
 							return true;
 
-//						for (Prediction p : stopPrediction.predictions) {
-//							if (new Date().after(p.arrival))
-//								return true;
-//						}
+						for (Prediction p : stopPrediction.predictions) {
+							if (new Date().after(p.arrival))
+								return true;
+						}
 
 						return false;
 					}
