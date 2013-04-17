@@ -6,7 +6,7 @@ public class Constants {
 	
 	public static final int MAX_STOPS = 4;
 
-	public static final long VIEW_UPDATE_INTERVAL = 1 * 1000;
-
 	public static final String NEXTBUS_API_CACHE_FILENAME = "nextbus_api_cache.dat";
+
+	public static final long VIEW_UPDATE_INTERVAL = 1 * 1000;
 }

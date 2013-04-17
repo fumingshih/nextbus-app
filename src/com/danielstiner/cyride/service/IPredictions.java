@@ -15,16 +15,16 @@ public interface IPredictions {
 	public abstract void addNearbyStopPredictionsByRouteListener(
 			StopPredictionsListener predictionsListener);
 
-	public abstract void removeNearbyStopPredictionsByRouteListener(
-			StopPredictionsListener predictionsListener);
-
-	public abstract void updateNearbyStopPredictionsByRoute();
-
 	public abstract void addRouteStopListener(RouteStop rs,
 			Callback<StopPrediction> predictionListener);
+
+	public abstract Collection<StopPrediction> getLatestNearbyStopPredictions();
+
+	public abstract void removeNearbyStopPredictionsByRouteListener(
+			StopPredictionsListener predictionsListener);
 
 	public abstract void removeRouteStopListener(RouteStop rs,
 			Callback<StopPrediction> predictionListener);
 	
-	public abstract Collection<StopPrediction> getLatestNearbyStopPredictions();
+	public abstract void updateNearbyStopPredictionsByRoute();
 }

@@ -8,8 +8,16 @@ public class CallbackManager<T> {
 	
 	private List<Callback<T>> listeners = new LinkedList<Callback<T>>();
 
+	public boolean active() {
+		return count() > 0;
+	}
+	
 	public void addListener(Callback<T> listener) {
 		listeners.add(listener);
+	}
+
+	public int count() {
+		return listeners.size();
 	}
 	
 	public boolean removeListener(Callback<T> listener) {
@@ -20,14 +28,6 @@ public class CallbackManager<T> {
 		for (Callback<T> to : this.listeners) {
 			to.run(value);
 		}
-	}
-	
-	public int count() {
-		return listeners.size();
-	}
-
-	public boolean active() {
-		return count() > 0;
 	}
 
 }

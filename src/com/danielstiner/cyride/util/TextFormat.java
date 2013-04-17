@@ -16,6 +16,15 @@ public class TextFormat {
 		return Float.toString(distance) + "ft";
 	}
 
+	public static CharSequence singleAbsoluteTime(List<Prediction> predictions) {
+		if (predictions == null || predictions.isEmpty())
+			return null;
+		
+		Prediction p = predictions.get(0);
+		
+		return ABSOLUTE_TIME_FORMAT.format(p.arrival);
+	}
+
 	public static CharSequence toString(List<Prediction> predictions) {
 		if (predictions == null)
 			return null;
@@ -46,7 +55,7 @@ public class TextFormat {
 		}
 		return sb.substring(1);
 	}
-
+	
 	public static CharSequence toString(Prediction p) {
 		if (p == null)
 			return null;
@@ -69,15 +78,6 @@ public class TextFormat {
 		}
 
 		return sb.toString();
-	}
-	
-	public static CharSequence singleAbsoluteTime(List<Prediction> predictions) {
-		if (predictions == null || predictions.isEmpty())
-			return null;
-		
-		Prediction p = predictions.get(0);
-		
-		return ABSOLUTE_TIME_FORMAT.format(p.arrival);
 	}
 
 	public static CharSequence toString(Route route) {

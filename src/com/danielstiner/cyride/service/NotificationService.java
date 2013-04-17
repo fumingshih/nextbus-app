@@ -22,27 +22,73 @@ import de.akquinet.android.androlog.Log;
 
 public class NotificationService extends Service {
 
-	private final static String CLASS = "com.danielstiner.cyride.service";
+	public class LocalBinder extends Binder {
+		NotificationService getService() {
+			return NotificationService.this;
+		}
+	}
 
-	private final static int NOTIFICATION = R.string.local_service_started;
+	private final static String CLASS = "com.danielstiner.cyride.service";
 
 	public static final String INTENT_EXTRA_SHOW_STOP_PREDICTIONS = CLASS
 			+ ".show_routestop_predictions";
 
-	private final ServiceConnector<ILocalService> mPredictionsService = LocalService
-			.createConnection();
+	private final static int NOTIFICATION = R.string.local_service_started;
 
-	private NotificationManager mNotificationManager;
-
-	private NotificationCompat.Builder mBuilder;
-	
-	private boolean mNotificationInProgress = false;
+	public static void putExtraRouteStop(Bundle extras, RouteStop routestop) {
+		extras.putSerializable(NotificationService.INTENT_EXTRA_SHOW_STOP_PREDICTIONS, routestop);
+	}
 
 	public static void showStopPredictions(Context context,
 			NextBusAPI.RouteStop stopAndRoute) {
 		Intent i = new Intent(context, NotificationService.class);
 		i.putExtra(INTENT_EXTRA_SHOW_STOP_PREDICTIONS, stopAndRoute);
 		context.startService(i);
+	}
+	
+	private final IBinder mBinder = new LocalBinder();
+
+	private NotificationCompat.Builder mBuilder;
+
+	private int mNotificationId;
+
+	private boolean mNotificationInProgress = false;
+
+	private NotificationManager mNotificationManager;
+
+	private final ServiceConnector<ILocalService> mPredictionsService = LocalService
+			.createConnection();
+
+	private void buildNotification() {
+		mBuilder.setSmallIcon(R.drawable.ic_launcher)
+				.setContentTitle("My Notification")
+				.setOnlyAlertOnce(true)
+				.setOngoing(true)
+				.setAutoCancel(true)
+				.setContentIntent(
+						PendingIntent.getActivity(this, 0, new Intent(this,
+								MainActivity.class),
+								PendingIntent.FLAG_UPDATE_CURRENT))
+				.setDeleteIntent(
+						PendingIntent.getService(this, 0, new Intent(this, // TODO This intent should kill the service
+								NotificationService.class),
+								PendingIntent.FLAG_UPDATE_CURRENT));
+		// setUsesChronometer
+
+	}
+
+	private void handleIntent(Intent intent) {
+
+		if (intent.hasExtra(INTENT_EXTRA_SHOW_STOP_PREDICTIONS)) {
+			// Parse out and show stop from intent
+			showRouteStop((RouteStop) intent
+					.getSerializableExtra(INTENT_EXTRA_SHOW_STOP_PREDICTIONS));
+		}
+	}
+
+	@Override
+	public IBinder onBind(Intent intent) {
+		return mBinder;
 	}
 
 	@Override
@@ -59,6 +105,15 @@ public class NotificationService extends Service {
 	}
 
 	@Override
+	public void onDestroy() {
+		super.onDestroy();
+
+		mNotificationManager.cancel(NOTIFICATION);
+
+		mPredictionsService.unbind(this);
+	}
+
+	@Override
 	public int onStartCommand(Intent intent, int flags, int startId) {
 		super.onStartCommand(intent, flags, startId);
 
@@ -67,13 +122,8 @@ public class NotificationService extends Service {
 		return START_NOT_STICKY;
 	}
 
-	private void handleIntent(Intent intent) {
-
-		if (intent.hasExtra(INTENT_EXTRA_SHOW_STOP_PREDICTIONS)) {
-			// Parse out and show stop from intent
-			showRouteStop((RouteStop) intent
-					.getSerializableExtra(INTENT_EXTRA_SHOW_STOP_PREDICTIONS));
-		}
+	private void setRouteStopPredictions(RouteStop rs, StopPrediction prediction) {
+		updateNotification(prediction);
 	}
 
 	private void showRouteStop(final RouteStop rs) {
@@ -89,34 +139,6 @@ public class NotificationService extends Service {
 						});
 			}
 		});
-	}
-
-	private void setRouteStopPredictions(RouteStop rs, StopPrediction prediction) {
-		updateNotification(prediction);
-	}
-
-	public class LocalBinder extends Binder {
-		NotificationService getService() {
-			return NotificationService.this;
-		}
-	}
-
-	private final IBinder mBinder = new LocalBinder();
-
-	private int mNotificationId;
-
-	@Override
-	public IBinder onBind(Intent intent) {
-		return mBinder;
-	}
-
-	@Override
-	public void onDestroy() {
-		super.onDestroy();
-
-		mNotificationManager.cancel(NOTIFICATION);
-
-		mPredictionsService.unbind(this);
 	}
 
 	private void updateNotification(StopPrediction p) {
@@ -150,28 +172,6 @@ public class NotificationService extends Service {
 				.notify(mNotificationId, mBuilder.getNotification());
 
 		mNotificationInProgress = true;
-	}
-
-	private void buildNotification() {
-		mBuilder.setSmallIcon(R.drawable.ic_launcher)
-				.setContentTitle("My Notification")
-				.setOnlyAlertOnce(true)
-				.setOngoing(true)
-				.setAutoCancel(true)
-				.setContentIntent(
-						PendingIntent.getActivity(this, 0, new Intent(this,
-								MainActivity.class),
-								PendingIntent.FLAG_UPDATE_CURRENT))
-				.setDeleteIntent(
-						PendingIntent.getService(this, 0, new Intent(this, // TODO This intent should kill the service
-								NotificationService.class),
-								PendingIntent.FLAG_UPDATE_CURRENT));
-		// setUsesChronometer
-
-	}
-
-	public static void putExtraRouteStop(Bundle extras, RouteStop routestop) {
-		extras.putSerializable(NotificationService.INTENT_EXTRA_SHOW_STOP_PREDICTIONS, routestop);
 	}
 
 	// private void showNotification() {

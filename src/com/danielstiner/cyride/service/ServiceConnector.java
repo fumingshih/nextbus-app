@@ -15,10 +15,16 @@ import com.danielstiner.cyride.util.Functor1;
 
 public class ServiceConnector<ServiceInterface> {
 
+	public static <ServiceInterface> ServiceConnector<ServiceInterface> createConnection(
+			Class<? extends Service> serviceClass,
+			Functor1<IBinder, ServiceInterface> getServiceFromBinder) {
+		return new ServiceConnector<ServiceInterface>(serviceClass,
+				getServiceFromBinder);
+	}
+
 	private ServiceInterface mBoundService;
 
 	private Functor1<IBinder, ServiceInterface> mBoundServiceGetter;
-
 	private ServiceConnection mConnection = new ServiceConnection() {
 		public void onServiceConnected(ComponentName className, IBinder service) {
 			mBoundService = mBoundServiceGetter.apply(service);
@@ -32,6 +38,7 @@ public class ServiceConnector<ServiceInterface> {
 		}
 	};
 	private boolean mIsBound = false;
+
 	private Queue<Callback<ServiceInterface>> mScheduledCallbacks = new LinkedList<Callback<ServiceInterface>>();
 
 	private Class<? extends Service> serviceClass;
@@ -49,6 +56,12 @@ public class ServiceConnector<ServiceInterface> {
 		mIsBound = true;
 	}
 
+	public void maybeNow(Callback<ServiceInterface> callback) {
+		if (mIsBound && null != mBoundService) {
+			callback.run(mBoundService);
+		}
+	}
+
 	public void schedule(Callback<ServiceInterface> callback) {
 		if (mIsBound && null != mBoundService) {
 			callback.run(mBoundService);
@@ -62,19 +75,6 @@ public class ServiceConnector<ServiceInterface> {
 			// Detach our existing connection.
 			context.unbindService(mConnection);
 			mIsBound = false;
-		}
-	}
-
-	public static <ServiceInterface> ServiceConnector<ServiceInterface> createConnection(
-			Class<? extends Service> serviceClass,
-			Functor1<IBinder, ServiceInterface> getServiceFromBinder) {
-		return new ServiceConnector<ServiceInterface>(serviceClass,
-				getServiceFromBinder);
-	}
-
-	public void maybeNow(Callback<ServiceInterface> callback) {
-		if (mIsBound && null != mBoundService) {
-			callback.run(mBoundService);
 		}
 	}
 

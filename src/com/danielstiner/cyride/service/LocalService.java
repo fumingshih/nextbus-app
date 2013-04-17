@@ -38,23 +38,6 @@ public class LocalService extends android.app.Service implements ILocalService {
 		}
 	}
 
-	@Override
-	public void addNearbyStopPredictionsByRouteListener(
-			StopPredictionsListener predictionListener) {
-		NearbyStopPredictionsByRouteListeners.addListener(predictionListener);
-	}
-
-	@Override
-	public void addRouteStopListener(RouteStop rs,
-			Callback<StopPrediction> predictionListener) {
-
-		if (!RouteStopListeners.containsKey(rs))
-			RouteStopListeners.put(rs,
-					new CallbackManager<NextBusAPI.StopPrediction>());
-
-		RouteStopListeners.get(rs).addListener(predictionListener);
-	}
-
 	private class UpdateNearbyTask extends
 			AsyncTask<Void, Void, Collection<StopPrediction>> {
 
@@ -88,13 +71,54 @@ public class LocalService extends android.app.Service implements ILocalService {
 
 	private final IBinder mBinder = new LocalBinder();
 
+	private Cache mCache;
+
 	private NextBusAPI mNextBusAPI;
 
 	private CallbackManager<Collection<StopPrediction>> NearbyStopPredictionsByRouteListeners = new CallbackManager<Collection<StopPrediction>>();
 
 	private Map<RouteStop, CallbackManager<StopPrediction>> RouteStopListeners = new HashMap<RouteStop, CallbackManager<StopPrediction>>();
 
-	private Cache mCache;
+	@Override
+	public void addNearbyStopPredictionsByRouteListener(
+			StopPredictionsListener predictionListener) {
+		NearbyStopPredictionsByRouteListeners.addListener(predictionListener);
+	}
+
+	@Override
+	public void addRouteStopListener(RouteStop rs,
+			Callback<StopPrediction> predictionListener) {
+
+		if (!RouteStopListeners.containsKey(rs))
+			RouteStopListeners.put(rs,
+					new CallbackManager<NextBusAPI.StopPrediction>());
+
+		RouteStopListeners.get(rs).addListener(predictionListener);
+	}
+
+	@Override
+	public Collection<StopPrediction> getLatestNearbyStopPredictions() {
+		LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+		Location location = LocationUtil.getBestCurrentLocation(lm);
+
+		if (null != location) {
+
+			try {
+				Collection<Stop> stops = NextBusAPI.nearestStopPerRoute(
+						mNextBusAPI.getStops(), location);
+
+				return mNextBusAPI.getStopPredictions(stops);
+
+			} catch (MalformedURLException e) {
+				Log.e(this, "UpdateNearbyTask.doInBackground objectIn.close", e);
+			} catch (DocumentException e) {
+				Log.e(this, "UpdateNearbyTask.doInBackground objectIn.close", e);
+			}
+
+		}
+
+		return new LinkedList<StopPrediction>();
+	}
 
 	@Override
 	public IBinder onBind(Intent intent) {
@@ -113,17 +137,17 @@ public class LocalService extends android.app.Service implements ILocalService {
 	}
 
 	@Override
-	public int onStartCommand(Intent intent, int flags, int startId) {
-		super.onStartCommand(intent, flags, startId);
-
-		return START_NOT_STICKY;
-	}
-
-	@Override
 	public void onDestroy() {
 		super.onDestroy();
 
 		mCache.save(this);
+	}
+
+	@Override
+	public int onStartCommand(Intent intent, int flags, int startId) {
+		super.onStartCommand(intent, flags, startId);
+
+		return START_NOT_STICKY;
 	}
 
 	@Override
@@ -150,29 +174,5 @@ public class LocalService extends android.app.Service implements ILocalService {
 	@Override
 	public void updateNearbyStopPredictionsByRoute() {
 		new UpdateNearbyTask().execute();
-	}
-
-	@Override
-	public Collection<StopPrediction> getLatestNearbyStopPredictions() {
-		LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-		Location location = LocationUtil.getBestCurrentLocation(lm);
-
-		if (null != location) {
-
-			try {
-				Collection<Stop> stops = NextBusAPI.nearestStopPerRoute(
-						mNextBusAPI.getStops(), location);
-
-				return mNextBusAPI.getStopPredictions(stops);
-
-			} catch (MalformedURLException e) {
-				Log.e(this, "UpdateNearbyTask.doInBackground objectIn.close", e);
-			} catch (DocumentException e) {
-				Log.e(this, "UpdateNearbyTask.doInBackground objectIn.close", e);
-			}
-
-		}
-
-		return new LinkedList<StopPrediction>();
 	}
 }

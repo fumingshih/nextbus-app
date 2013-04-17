@@ -92,16 +92,16 @@ public class NextBusAPI {
 	public static class StopPrediction implements Serializable {
 		private static final long serialVersionUID = -5798823753170327173L;
 
+		public final List<Prediction> predictions = new LinkedList<Prediction>();
+
+		public final Route route;
+		public final RouteStop routestop;
+		public final Stop stop;
 		public StopPrediction(RouteStop routestop) {
 			this.routestop = routestop;
 			this.route = routestop.route;
 			this.stop = routestop.stop;
 		}
-
-		public final List<Prediction> predictions = new LinkedList<Prediction>();
-		public final RouteStop routestop;
-		public final Route route;
-		public final Stop stop;
 	}
 
 	private static class Urls {

@@ -21,61 +21,14 @@ import com.danielstiner.cyride.util.Callback;
 import com.danielstiner.cyride.util.NextBusAPI.StopPrediction;
 import com.danielstiner.cyride.util.TextFormat;
 
-@TargetApi(Build.VERSION_CODES.ICE_CREAM_SANDWICH)
-public class MyWidgetService extends android.widget.RemoteViewsService {
-
-	private final static String CLASS = "com.danielstiner.cyride.service";
-
-	private static final String INTENT_EXTRA_UPDATE_NEARBY = CLASS
-			+ ".update_nearby";
-
-	public static void updateNearbyWidgets(Context context) {
-		if (android.os.Build.VERSION.SDK_INT >= 11) {
-			Intent i = new Intent(context, MyWidgetService.class);
-			i.putExtra(INTENT_EXTRA_UPDATE_NEARBY, true);
-			context.startService(i);
-		}
-	}
-
-	@Override
-	public int onStartCommand(Intent intent, int flags, int startId) {
-
-		handleIntent(intent);
-
-		return super.onStartCommand(intent, flags, startId);
-	}
-
-	private void handleIntent(Intent intent) {
-
-		if (intent == null)
-			return;
-
-		if (intent.getBooleanExtra(INTENT_EXTRA_UPDATE_NEARBY, false)) {
-			updateWidgets();
-		}
-	}
-
-	public void updateWidgets() {
-		AppWidgetManager mgr = AppWidgetManager.getInstance(this);
-		mgr.notifyAppWidgetViewDataChanged(
-				mgr.getAppWidgetIds(new ComponentName(this,
-						MyWidgetProvider.class)), R.id.widget_listview);
-	}
-
-	@Override
-	public RemoteViewsFactory onGetViewFactory(Intent intent) {
-		return new MyRemoteViewsFactory(this.getApplicationContext(), intent);
-	}
-}
-
 class MyRemoteViewsFactory implements
 		android.widget.RemoteViewsService.RemoteViewsFactory {
 
+	private int mAppWidgetId;
+
 	private ServiceConnector<ILocalService> mConn = LocalService
 			.createConnection();
-
 	private Context mContext;
-	private int mAppWidgetId;
 
 	private final List<StopPrediction> mRouteStopPredictions = new ArrayList<StopPrediction>();
 
@@ -85,8 +38,19 @@ class MyRemoteViewsFactory implements
 				AppWidgetManager.INVALID_APPWIDGET_ID);
 	}
 
-	public void onCreate() {
-		mConn.bind(mContext);
+	@Override
+	public int getCount() {
+		return mRouteStopPredictions.size();
+	}
+
+	@Override
+	public long getItemId(int position) {
+		return position;
+	}
+
+	@Override
+	public RemoteViews getLoadingView() {
+		return null;
 	}
 
 	// Given the position (index) of a WidgetItem in the array, use the
@@ -124,21 +88,6 @@ class MyRemoteViewsFactory implements
 	}
 
 	@Override
-	public int getCount() {
-		return mRouteStopPredictions.size();
-	}
-
-	@Override
-	public long getItemId(int position) {
-		return position;
-	}
-
-	@Override
-	public RemoteViews getLoadingView() {
-		return null;
-	}
-
-	@Override
 	public int getViewTypeCount() {
 		return 1;
 	}
@@ -146,6 +95,10 @@ class MyRemoteViewsFactory implements
 	@Override
 	public boolean hasStableIds() {
 		return false;
+	}
+
+	public void onCreate() {
+		mConn.bind(mContext);
 	}
 
 	@Override
@@ -163,5 +116,52 @@ class MyRemoteViewsFactory implements
 	@Override
 	public void onDestroy() {
 		mConn.unbind(mContext);
+	}
+}
+
+@TargetApi(Build.VERSION_CODES.ICE_CREAM_SANDWICH)
+public class MyWidgetService extends android.widget.RemoteViewsService {
+
+	private final static String CLASS = "com.danielstiner.cyride.service";
+
+	private static final String INTENT_EXTRA_UPDATE_NEARBY = CLASS
+			+ ".update_nearby";
+
+	public static void updateNearbyWidgets(Context context) {
+		if (android.os.Build.VERSION.SDK_INT >= 11) {
+			Intent i = new Intent(context, MyWidgetService.class);
+			i.putExtra(INTENT_EXTRA_UPDATE_NEARBY, true);
+			context.startService(i);
+		}
+	}
+
+	private void handleIntent(Intent intent) {
+
+		if (intent == null)
+			return;
+
+		if (intent.getBooleanExtra(INTENT_EXTRA_UPDATE_NEARBY, false)) {
+			updateWidgets();
+		}
+	}
+
+	@Override
+	public RemoteViewsFactory onGetViewFactory(Intent intent) {
+		return new MyRemoteViewsFactory(this.getApplicationContext(), intent);
+	}
+
+	@Override
+	public int onStartCommand(Intent intent, int flags, int startId) {
+
+		handleIntent(intent);
+
+		return super.onStartCommand(intent, flags, startId);
+	}
+
+	public void updateWidgets() {
+		AppWidgetManager mgr = AppWidgetManager.getInstance(this);
+		mgr.notifyAppWidgetViewDataChanged(
+				mgr.getAppWidgetIds(new ComponentName(this,
+						MyWidgetProvider.class)), R.id.widget_listview);
 	}
 }

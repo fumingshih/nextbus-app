@@ -23,48 +23,10 @@ import de.akquinet.android.androlog.Log;
 
 public class Cache implements Serializable {
 	
-	private static final String TAG = "Cache";
-
-	public Cache(String agency) {
-		this.agency = agency;
-	}
-
-	private String agency;
-
 	private static final long serialVersionUID = -5003315853529912609L;
 
-	private Map<String, Route> mRoutes = new HashMap<String, NextBusAPI.Route>();
+	private static final String TAG = "Cache";
 
-	private Map<RouteStop, StopPrediction> mStopRoutePredictionsCache = new HashMap<NextBusAPI.RouteStop, NextBusAPI.StopPrediction>();
-
-	private Map<String, Stop> mStopsByTitle = new HashMap<String, NextBusAPI.Stop>();
-
-	private Date mStopsLastUpdated;
-
-	public void save(Context context) {
-		ObjectOutputStream objectOut = null;
-		try {
-
-			FileOutputStream fileOut = context
-					.openFileOutput(Constants.NEXTBUS_API_CACHE_FILENAME,
-							Activity.MODE_PRIVATE);
-			objectOut = new ObjectOutputStream(fileOut);
-			objectOut.writeObject(this);
-			fileOut.getFD().sync();
-
-		} catch (IOException e) {
-			Log.e(this, "mNextBusAPI.saveCache", e);
-		} finally {
-			if (objectOut != null) {
-				try {
-					objectOut.close();
-				} catch (IOException e) {
-					Log.e(this, "mNextBusAPI.saveCache objectOut.close", e);
-				}
-			}
-		}
-	}
-	
 	public static Cache loadCache(String agency, Context context) {
 		
 		Cache c = loadCacheInternal(context);
@@ -102,5 +64,43 @@ public class Cache implements Serializable {
 		}
 
 		return object;
+	}
+
+	private String agency;
+
+	private Map<String, Route> mRoutes = new HashMap<String, NextBusAPI.Route>();
+
+	private Map<RouteStop, StopPrediction> mStopRoutePredictionsCache = new HashMap<NextBusAPI.RouteStop, NextBusAPI.StopPrediction>();
+
+	private Map<String, Stop> mStopsByTitle = new HashMap<String, NextBusAPI.Stop>();
+
+	private Date mStopsLastUpdated;
+	
+	public Cache(String agency) {
+		this.agency = agency;
+	}
+
+	public void save(Context context) {
+		ObjectOutputStream objectOut = null;
+		try {
+
+			FileOutputStream fileOut = context
+					.openFileOutput(Constants.NEXTBUS_API_CACHE_FILENAME,
+							Activity.MODE_PRIVATE);
+			objectOut = new ObjectOutputStream(fileOut);
+			objectOut.writeObject(this);
+			fileOut.getFD().sync();
+
+		} catch (IOException e) {
+			Log.e(this, "mNextBusAPI.saveCache", e);
+		} finally {
+			if (objectOut != null) {
+				try {
+					objectOut.close();
+				} catch (IOException e) {
+					Log.e(this, "mNextBusAPI.saveCache objectOut.close", e);
+				}
+			}
+		}
 	}
 }
