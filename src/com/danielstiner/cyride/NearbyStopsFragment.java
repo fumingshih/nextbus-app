@@ -12,9 +12,9 @@ import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
 
-import com.danielstiner.cyride.service.ILocalService;
+import com.danielstiner.cyride.service.IPredictions;
 import com.danielstiner.cyride.service.IPredictions.StopPredictionsListener;
-import com.danielstiner.cyride.service.LocalService;
+import com.danielstiner.cyride.service.PredictionsService;
 import com.danielstiner.cyride.service.NotificationService;
 import com.danielstiner.cyride.service.ServiceConnector;
 import com.danielstiner.cyride.util.Callback;
@@ -45,7 +45,7 @@ public class NearbyStopsFragment extends ListFragment {
 		}
 	};
 
-	private ServiceConnector<ILocalService> mPredictionsService = LocalService
+	private ServiceConnector<IPredictions> mPredictionsService = PredictionsService
 			.createConnection();
 
 	private final Runnable mViewUpdater = new Runnable() {
@@ -87,9 +87,9 @@ public class NearbyStopsFragment extends ListFragment {
 		super.onAttach(activity);
 
 		mPredictionsService.bind(activity);
-		mPredictionsService.schedule(new Callback<ILocalService>() {
+		mPredictionsService.schedule(new Callback<IPredictions>() {
 			@Override
-			public void run(ILocalService service) {
+			public void run(IPredictions service) {
 				service.addNearbyStopPredictionsByRouteListener(mPredictionListener);
 				service.updateNearbyStopPredictionsByRoute();
 			}
@@ -105,9 +105,9 @@ public class NearbyStopsFragment extends ListFragment {
 	public void onDetach() {
 		super.onDetach();
 
-		mPredictionsService.schedule(new Callback<ILocalService>() {
+		mPredictionsService.schedule(new Callback<IPredictions>() {
 			@Override
-			public void run(ILocalService service) {
+			public void run(IPredictions service) {
 				service.removeNearbyStopPredictionsByRouteListener(mPredictionListener);
 			}
 		});

@@ -56,7 +56,7 @@ public class NotificationService extends Service {
 
 	private NotificationManager mNotificationManager;
 
-	private final ServiceConnector<ILocalService> mPredictionsService = LocalService
+	private final ServiceConnector<IPredictions> mPredictionsService = PredictionsService
 			.createConnection();
 
 	private void buildNotification() {
@@ -127,9 +127,9 @@ public class NotificationService extends Service {
 	}
 
 	private void showRouteStop(final RouteStop rs) {
-		mPredictionsService.schedule(new Callback<ILocalService>() {
+		mPredictionsService.schedule(new Callback<IPredictions>() {
 			@Override
-			public void run(ILocalService predictions) {
+			public void run(IPredictions predictions) {
 				predictions.addRouteStopListener(rs,
 						new Callback<StopPrediction>() {
 							@Override

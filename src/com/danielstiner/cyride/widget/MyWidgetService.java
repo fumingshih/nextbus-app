@@ -13,8 +13,8 @@ import android.os.Bundle;
 import android.widget.RemoteViews;
 
 import com.danielstiner.cyride.R;
-import com.danielstiner.cyride.service.ILocalService;
-import com.danielstiner.cyride.service.LocalService;
+import com.danielstiner.cyride.service.IPredictions;
+import com.danielstiner.cyride.service.PredictionsService;
 import com.danielstiner.cyride.service.NotificationService;
 import com.danielstiner.cyride.service.ServiceConnector;
 import com.danielstiner.cyride.util.Callback;
@@ -26,7 +26,7 @@ class MyRemoteViewsFactory implements
 
 	private int mAppWidgetId;
 
-	private ServiceConnector<ILocalService> mConn = LocalService
+	private ServiceConnector<IPredictions> mConn = PredictionsService
 			.createConnection();
 	private Context mContext;
 
@@ -103,9 +103,9 @@ class MyRemoteViewsFactory implements
 
 	@Override
 	public void onDataSetChanged() {
-		mConn.maybeNow(new Callback<ILocalService>() {
+		mConn.maybeNow(new Callback<IPredictions>() {
 			@Override
-			public void run(ILocalService predictions) {
+			public void run(IPredictions predictions) {
 				mRouteStopPredictions.clear();
 				mRouteStopPredictions.addAll(predictions
 						.getLatestNearbyStopPredictions());

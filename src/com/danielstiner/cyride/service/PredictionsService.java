@@ -30,11 +30,11 @@ import com.danielstiner.cyride.widget.MyWidgetService;
 
 import de.akquinet.android.androlog.Log;
 
-public class LocalService extends android.app.Service implements ILocalService {
+public class PredictionsService extends android.app.Service implements IPredictions {
 
 	public class LocalBinder extends Binder {
-		LocalService getService() {
-			return LocalService.this;
+		PredictionsService getService() {
+			return PredictionsService.this;
 		}
 	}
 
@@ -48,7 +48,7 @@ public class LocalService extends android.app.Service implements ILocalService {
 		protected void onPostExecute(Collection<StopPrediction> predictions) {
 			NearbyStopPredictionsByRouteListeners.runAll(predictions);
 
-			MyWidgetService.updateNearbyWidgets(LocalService.this);
+			MyWidgetService.updateNearbyWidgets(PredictionsService.this);
 		}
 	}
 
@@ -58,11 +58,11 @@ public class LocalService extends android.app.Service implements ILocalService {
 	 * @param context
 	 * @return
 	 */
-	public static ServiceConnector<ILocalService> createConnection() {
-		return ServiceConnector.createConnection(LocalService.class,
-				new Functor1<IBinder, ILocalService>() {
+	public static ServiceConnector<IPredictions> createConnection() {
+		return ServiceConnector.createConnection(PredictionsService.class,
+				new Functor1<IBinder, IPredictions>() {
 					@Override
-					public ILocalService apply(IBinder service) {
+					public IPredictions apply(IBinder service) {
 						return ((LocalBinder) service).getService();
 					}
 
