@@ -80,12 +80,14 @@ public class NextBusAPI {
 
 		public final List<Route> routes = new LinkedList<NextBusAPI.Route>();
 
-		String routeTag;
-		String tag;
+		public final String tag;
 		public final String title;
 
-		public Stop(String title) {
+		public Stop(String tag, String title, double latitude, double longitude) {
 			this.title = title;
+			this.tag = tag;
+			this.latitude = latitude;
+			this.longitude = longitude;
 		}
 	}
 
@@ -97,6 +99,7 @@ public class NextBusAPI {
 		public final Route route;
 		public final RouteStop routestop;
 		public final Stop stop;
+
 		public StopPrediction(RouteStop routestop) {
 			this.routestop = routestop;
 			this.route = routestop.route;
@@ -182,35 +185,41 @@ public class NextBusAPI {
 		mAgency = agency;
 	}
 
-	private Route getRoute(String routeTag, String routeTitle, int routeColor) {
-		return new Route(routeTag, routeTitle, routeColor);
-	}
-
-	private RouteStop getRouteStop(String stopTitle, String routeTag, String routeTitle) {
-		Route r = getRoute(routeTag, routeTitle, 0);
-		Stop s = new Stop(stopTitle);
-
-		return new RouteStop(r, s);
-	}
-
 	public Collection<StopPrediction> getStopPredictions(
 			final Collection<Stop> stops) throws MalformedURLException,
 			DocumentException {
 
-		final Collection<StopPrediction> predictions = new ArrayList<NextBusAPI.StopPrediction>();
+		final Collection<RouteStop> routeStops = new ArrayList<RouteStop>();
 
-		StringBuilder queryParams = new StringBuilder();
 		for (Stop s : stops) {
 			for (Route r : s.routes) {
-				queryParams.append("&stops=");
-				queryParams.append(r.tag);
-				queryParams.append("|");
-				queryParams.append(s.tag);
+				routeStops.add(new RouteStop(r, s));
 			}
 		}
 
-		if (0 == queryParams.length())
+		return getRouteStopPredictions(routeStops);
+	}
+
+	public Collection<StopPrediction> getRouteStopPredictions(
+			final Collection<RouteStop> routeStops)
+			throws MalformedURLException, DocumentException {
+
+		final Collection<StopPrediction> predictions = new ArrayList<StopPrediction>();
+
+		final Map<String, RouteStop> routeStopMap = new HashMap<String, RouteStop>();
+
+		if (routeStops == null || routeStops.isEmpty())
 			return predictions;
+
+		StringBuilder queryParams = new StringBuilder();
+		for (RouteStop rs : routeStops) {
+			queryParams.append("&stops=");
+			queryParams.append(rs.route.tag);
+			queryParams.append("|");
+			queryParams.append(rs.stop.tag);
+
+			routeStopMap.put(keyForRouteStopTags(rs.stop.tag, rs.route.tag), rs);
+		}
 
 		final URL u = Urls.getMultiStopUrl(this.mAgency,
 				queryParams.substring(1));
@@ -218,14 +227,16 @@ public class NextBusAPI {
 		SAXReader reader = new SAXReader();
 		Document predictions_document = reader.read(u);
 
-		Collection<StopPrediction> newPredictions = parsePredictions(predictions_document);
+		Collection<StopPrediction> newPredictions = parsePredictions(
+				predictions_document, routeStopMap);
 
 		predictions.addAll(newPredictions);
 
 		return predictions;
 	}
 
-	public Collection<Stop> getStops() throws MalformedURLException, DocumentException {
+	public Collection<Stop> getStops() throws MalformedURLException,
+			DocumentException {
 
 		URL u = Urls.getRouteConfigUrl(this.mAgency);
 
@@ -236,7 +247,12 @@ public class NextBusAPI {
 		return parseStops(stops_document);
 	}
 
-	private List<StopPrediction> parsePredictions(Document predictions_document) {
+	private static String keyForRouteStopTags(String stopTag, String routeTag) {
+		return routeTag + "|" + stopTag;
+	}
+
+	private static List<StopPrediction> parsePredictions(
+			Document predictions_document, Map<String, RouteStop> routeStopMap) {
 		List<StopPrediction> predictions = new ArrayList<StopPrediction>();
 
 		Element root = predictions_document.getRootElement();
@@ -248,17 +264,18 @@ public class NextBusAPI {
 
 			String routeTag = predictionsElement.attributeValue("routeTag");
 			String routeTitle = predictionsElement.attributeValue("routeTitle");
+			String stopTag = predictionsElement.attributeValue("stopTag");
 			String stopTitle = predictionsElement.attributeValue("stopTitle");
-//			String dirTitleBecauseNoPredictions = predictionsElement
-//					.attributeValue("dirTitleBecauseNoPredictions");
-//			String agencyTitle = predictionsElement
-//					.attributeValue("agencyTitle");
+			// String dirTitleBecauseNoPredictions = predictionsElement
+			// .attributeValue("dirTitleBecauseNoPredictions");
+			// String agencyTitle = predictionsElement
+			// .attributeValue("agencyTitle");
 
 			if (null == predictionsElement.element("direction"))
 				continue;
 
-			StopPrediction p = new StopPrediction(getRouteStop(stopTitle,
-					routeTag, routeTitle));
+			StopPrediction p = new StopPrediction(getRouteStop(stopTag,
+					routeTag, routeStopMap));
 
 			for (Iterator<Element> j = predictionsElement.element("direction")
 					.elementIterator("prediction"); j.hasNext();) {
@@ -279,7 +296,18 @@ public class NextBusAPI {
 		return predictions;
 	}
 
-	private Route parseRouteElement(Element routeElement) {
+	private static RouteStop getRouteStop(String stopTag, String routeTag,
+			Map<String, RouteStop> routeStopMap) {
+		// TODO Null check
+		return routeStopMap.get(keyForRouteStopTags(stopTag, routeTag));
+	}
+
+	private static Route getRoute(String routeTag, String routeTitle,
+			int routeColor) {
+		return new Route(routeTag, routeTitle, routeColor);
+	}
+
+	private static Route parseRouteElement(Element routeElement) {
 		String routeTag = routeElement.attributeValue("tag");
 		String routeTitle = routeElement.attributeValue("title");
 		int routeColor = Color.parseColor("#"
@@ -287,7 +315,7 @@ public class NextBusAPI {
 		return getRoute(routeTag, routeTitle, routeColor);
 	}
 
-	private Collection<Stop> parseStops(Document stops_document) {
+	private static Collection<Stop> parseStops(Document stops_document) {
 
 		Collection<Stop> stops = new ArrayList<Stop>();
 
@@ -303,12 +331,14 @@ public class NextBusAPI {
 					.hasNext();) {
 				Element stopElement = j.next();
 
-				Stop s = new Stop(stopElement.attributeValue("title"));
-				s.tag = stopElement.attributeValue("tag");
-				s.latitude = Double.parseDouble(stopElement
+				String title = stopElement.attributeValue("title");
+				String tag = stopElement.attributeValue("tag");
+				double lat = Double.parseDouble(stopElement
 						.attributeValue("lat"));
-				s.longitude = Double.parseDouble(stopElement
+				double lon = Double.parseDouble(stopElement
 						.attributeValue("lon"));
+
+				Stop s = new Stop(tag, title, lat, lon);
 				s.routes.add(r);
 				stops.add(s);
 			}
