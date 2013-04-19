@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -68,13 +69,15 @@ public class Cache implements Serializable {
 
 	private String agency;
 
-	private Map<String, Route> mRoutes = new HashMap<String, NextBusAPI.Route>();
-
-	private Map<RouteStop, StopPrediction> mStopRoutePredictionsCache = new HashMap<NextBusAPI.RouteStop, NextBusAPI.StopPrediction>();
-
-	private Map<String, Stop> mStopsByTitle = new HashMap<String, NextBusAPI.Stop>();
+//	private Map<String, Route> mRoutes = new HashMap<String, NextBusAPI.Route>();
+//
+//	private Map<RouteStop, StopPrediction> mStopRoutePredictionsCache = new HashMap<NextBusAPI.RouteStop, NextBusAPI.StopPrediction>();
+//
+//	private Map<String, Stop> mStopsByTitle = new HashMap<String, NextBusAPI.Stop>();
 
 	private Date mStopsLastUpdated;
+
+	private Collection<Stop> mStops;
 	
 	public Cache(String agency) {
 		this.agency = agency;
@@ -102,5 +105,18 @@ public class Cache implements Serializable {
 				}
 			}
 		}
+	}
+
+	public Collection<Stop> getStops() {
+		return mStops;
+	}
+
+	public Date lastStopsUpdated() {
+		return mStopsLastUpdated;
+	}
+
+	public void setStops(Collection<Stop> stops) {
+		mStopsLastUpdated = new Date();
+		mStops = stops;
 	}
 }

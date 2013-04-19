@@ -25,14 +25,6 @@ import android.location.Location;
 
 public class NextBusAPI {
 
-	public interface CachePolicy {
-
-		boolean shouldUpdateStopPredictions(StopPrediction c);
-
-		boolean shouldUpdateStops(Date lastUpdate);
-
-	}
-
 	public static class Prediction implements Serializable {
 		private static final long serialVersionUID = -2480643929223384105L;
 
@@ -127,8 +119,8 @@ public class NextBusAPI {
 		}
 	}
 
-	public static Collection<Stop> nearestStopPerRoute(Collection<Stop> stops,
-			Location l) {
+	public static Collection<Stop> nearestStopPerRoute(final Collection<Stop> stops,
+			final Location l) {
 
 		final Map<Route, Stop> stopsByRoute = new HashMap<NextBusAPI.Route, NextBusAPI.Stop>();
 

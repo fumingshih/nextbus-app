@@ -17,6 +17,7 @@ import android.os.Binder;
 import android.os.IBinder;
 
 import com.danielstiner.cyride.util.Cache;
+import com.danielstiner.cyride.util.CachePolicy;
 import com.danielstiner.cyride.util.Callback;
 import com.danielstiner.cyride.util.CallbackManager;
 import com.danielstiner.cyride.util.Constants;
@@ -74,6 +75,8 @@ public class PredictionsService extends android.app.Service implements IPredicti
 	private Cache mCache;
 
 	private NextBusAPI mNextBusAPI;
+	
+	private CachePolicy mCachePolicy;
 
 	private CallbackManager<Collection<StopPrediction>> NearbyStopPredictionsByRouteListeners = new CallbackManager<Collection<StopPrediction>>();
 
@@ -104,10 +107,20 @@ public class PredictionsService extends android.app.Service implements IPredicti
 		if (null != location) {
 
 			try {
-				Collection<Stop> stops = NextBusAPI.nearestStopPerRoute(
-						mNextBusAPI.getStops(), location);
+				final Collection<Stop> allStops;
+				
+				if(mCachePolicy.shouldUpdateStops(mCache)) {
+					allStops = mNextBusAPI.getStops();
+					mCache.setStops(allStops);
+				} else {
+					allStops = mCache.getStops();
+				}
+				
+				Collection<Stop> nearestStops = NextBusAPI.nearestStopPerRoute(allStops, location);
+				
+				// TODO: Maybe only update stops that need updating
 
-				return mNextBusAPI.getStopPredictions(stops);
+				return mNextBusAPI.getStopPredictions(nearestStops);
 
 			} catch (MalformedURLException e) {
 				Log.e(this, "UpdateNearbyTask.doInBackground objectIn.close", e);
@@ -134,6 +147,19 @@ public class PredictionsService extends android.app.Service implements IPredicti
 		mNextBusAPI = new NextBusAPI(Constants.AGENCY);
 
 		mCache = Cache.loadCache(Constants.AGENCY, this);
+		
+		mCachePolicy = new CachePolicy() {
+			
+			@Override
+			public boolean shouldUpdateStops(Cache cache) {
+				return mCache.lastStopsUpdated() == null; // TODO: Also update if more than a day old or something
+			}
+			
+			@Override
+			public boolean shouldUpdateStopPredictions(StopPrediction c, Cache cache) {
+				return true;
+			}
+		};
 	}
 
 	@Override
