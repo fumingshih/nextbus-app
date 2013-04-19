@@ -65,12 +65,13 @@ class MyRemoteViewsFactory implements
 		// file, and set the
 		// text based on the position.
 		RemoteViews rv = new RemoteViews(mContext.getPackageName(),
-				R.layout.stop_prediction_list_item);
+				R.layout.widget_prediction_item);
 		rv.setTextViewText(R.id.text_route, TextFormat.toString(p.route));
 		rv.setTextViewText(R.id.text_stop, TextFormat.toString(p.stop));
 		rv.setTextViewText(R.id.text_times,
 				TextFormat.singleAbsoluteTime(p.predictions));
-
+		rv.setInt(R.id.color, "setBackgroundColor", p.route.color);
+		
 		// Next, set a fill-intent, which will be used to fill in the
 		// pending intent template
 		// that is set on the collection view in StackWidgetProvider.
@@ -122,7 +123,7 @@ class MyRemoteViewsFactory implements
 @TargetApi(Build.VERSION_CODES.ICE_CREAM_SANDWICH)
 public class MyWidgetService extends android.widget.RemoteViewsService {
 
-	private final static String CLASS = "com.danielstiner.cyride.service";
+	private final static String CLASS = "com.danielstiner.cyride.widget.NearbyWidgetService";
 
 	private static final String INTENT_EXTRA_UPDATE_NEARBY = CLASS
 			+ ".update_nearby";
@@ -158,7 +159,7 @@ public class MyWidgetService extends android.widget.RemoteViewsService {
 		return super.onStartCommand(intent, flags, startId);
 	}
 
-	public void updateWidgets() {
+	private void updateWidgets() {
 		AppWidgetManager mgr = AppWidgetManager.getInstance(this);
 		mgr.notifyAppWidgetViewDataChanged(
 				mgr.getAppWidgetIds(new ComponentName(this,
