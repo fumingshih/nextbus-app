@@ -10,7 +10,7 @@ import com.danielstiner.cyride.util.NextBusAPI.Stop;
 
 public class TextFormat {
 	
-	private static final SimpleDateFormat ABSOLUTE_TIME_FORMAT = new SimpleDateFormat("HH:mm");
+	private static final SimpleDateFormat ABSOLUTE_TIME_FORMAT = new SimpleDateFormat("hh:mm");
 
 	public static CharSequence distanceToString(float distance) {
 		return Float.toString(distance) + "ft";
