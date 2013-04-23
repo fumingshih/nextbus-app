@@ -27,4 +27,6 @@ public interface IPredictions {
 			Callback<StopPrediction> predictionListener);
 	
 	public abstract void updateNearbyStopPredictionsByRoute();
+
+	public abstract void updateRouteStopPredictions(RouteStop rs);
 }

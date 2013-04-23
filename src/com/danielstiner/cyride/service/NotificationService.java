@@ -7,16 +7,20 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Binder;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
 import android.support.v4.app.NotificationCompat;
+import android.widget.RemoteViews;
 
 import com.danielstiner.cyride.MainActivity;
 import com.danielstiner.cyride.R;
 import com.danielstiner.cyride.util.Callback;
+import com.danielstiner.cyride.util.Constants;
 import com.danielstiner.cyride.util.NextBusAPI;
 import com.danielstiner.cyride.util.NextBusAPI.RouteStop;
 import com.danielstiner.cyride.util.NextBusAPI.StopPrediction;
 import com.danielstiner.cyride.util.TextFormat;
+import com.danielstiner.cyride.view.RemoteViewsProvider;
 
 import de.akquinet.android.androlog.Log;
 
@@ -35,22 +39,27 @@ public class NotificationService extends Service {
 
 	private final static int NOTIFICATION = R.string.local_service_started;
 
+	public static final String ACTION_NOTIFY = CLASS + ".ACTION_NOTIFY";
+
 	public static void putExtraRouteStop(Bundle extras, RouteStop routestop) {
-		extras.putSerializable(NotificationService.INTENT_EXTRA_SHOW_STOP_PREDICTIONS, routestop);
+		extras.putSerializable(
+				NotificationService.INTENT_EXTRA_SHOW_STOP_PREDICTIONS,
+				routestop);
 	}
 
 	public static void showStopPredictions(Context context,
 			NextBusAPI.RouteStop stopAndRoute) {
 		Intent i = new Intent(context, NotificationService.class);
+		i.setAction(NotificationService.ACTION_NOTIFY);
 		i.putExtra(INTENT_EXTRA_SHOW_STOP_PREDICTIONS, stopAndRoute);
 		context.startService(i);
 	}
-	
+
 	private final IBinder mBinder = new LocalBinder();
 
 	private NotificationCompat.Builder mBuilder;
 
-	private int mNotificationId;
+	private int mNotificationId = 1;
 
 	private boolean mNotificationInProgress = false;
 
@@ -61,16 +70,22 @@ public class NotificationService extends Service {
 
 	private void buildNotification() {
 		mBuilder.setSmallIcon(R.drawable.ic_launcher)
-				.setContentTitle("My Notification")
+				.setContentTitle("")
 				.setOnlyAlertOnce(true)
-				.setOngoing(true)
-				.setAutoCancel(true)
+				.setOngoing(false)
+				.setAutoCancel(false)
 				.setContentIntent(
 						PendingIntent.getActivity(this, 0, new Intent(this,
 								MainActivity.class),
 								PendingIntent.FLAG_UPDATE_CURRENT))
 				.setDeleteIntent(
-						PendingIntent.getService(this, 0, new Intent(this, // TODO This intent should kill the service
+						PendingIntent.getService(this, 0, new Intent(this, // TODO
+																			// This
+																			// intent
+																			// should
+																			// kill
+																			// the
+																			// service
 								NotificationService.class),
 								PendingIntent.FLAG_UPDATE_CURRENT));
 		// setUsesChronometer
@@ -81,6 +96,11 @@ public class NotificationService extends Service {
 
 		if (intent.hasExtra(INTENT_EXTRA_SHOW_STOP_PREDICTIONS)) {
 			// Parse out and show stop from intent
+			showRouteStop((RouteStop) intent
+					.getSerializableExtra(INTENT_EXTRA_SHOW_STOP_PREDICTIONS));
+		}
+		
+		if(ACTION_NOTIFY.equals(intent.getAction())) {
 			showRouteStop((RouteStop) intent
 					.getSerializableExtra(INTENT_EXTRA_SHOW_STOP_PREDICTIONS));
 		}
@@ -137,6 +157,7 @@ public class NotificationService extends Service {
 								setRouteStopPredictions(rs, prediction);
 							}
 						});
+				predictions.updateRouteStopPredictions(rs);
 			}
 		});
 	}
@@ -151,8 +172,6 @@ public class NotificationService extends Service {
 			// TODO
 		}
 
-		mBuilder.setContentText("");
-
 		// Copy when of first prediction
 		long when = p.predictions.get(0).arrival.getTime();
 
@@ -165,44 +184,16 @@ public class NotificationService extends Service {
 		// large text at the right-hand side of the notification.
 		CharSequence info = TextFormat.toString(p.predictions.get(0));
 
+		CharSequence tickerText = TextFormat.toString(p.predictions.get(0))
+				+ " till " + TextFormat.toString(p.route) + " at "
+				+ TextFormat.toString(p.stop);
+
 		mBuilder.setContentTitle(title).setContentText(text)
-				.setContentInfo(info).setWhen(when);
+				.setContentInfo(info).setWhen(when).setTicker(tickerText);
 
 		mNotificationManager
 				.notify(mNotificationId, mBuilder.getNotification());
 
 		mNotificationInProgress = true;
 	}
-
-	// private void showNotification() {
-	// // In this sample, we'll use the same text for the ticker and the
-	// // expanded notification
-	// CharSequence text = getText(R.string.local_service_started);
-	//
-	// if (!mNotificationStops.isEmpty())
-	// text = TextFormat.toString(mNotificationStops.get(0).route)
-	// + "   "
-	// + TextFormat
-	// .toString(mNotificationStops.get(0).predictions);
-	//
-	// // Set the icon, scrolling text and timestamp
-	// if (mNotification == null) {
-	// mNotification = new Notification(R.drawable.ic_launcher, text,
-	// System.currentTimeMillis());
-	//
-	// }
-	//
-	// // The PendingIntent to launch our activity if the user selects this
-	// // notification
-	// PendingIntent contentIntent = PendingIntent.getActivity(this, 0,
-	// new Intent(this, MainActivity.class),
-	// PendingIntent.FLAG_UPDATE_CURRENT);
-	//
-	// // Set the info for the views that show in the notification panel.
-	// mNotification.setLatestEventInfo(this,
-	// getText(R.string.local_service_started), text, contentIntent);
-	//
-	// // Send the notification.
-	// mNM.notify(NOTIFICATION, mNotification);
-	// }
 }

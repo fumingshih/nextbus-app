@@ -1,6 +1,7 @@
 package com.danielstiner.cyride.service;
 
 import java.net.MalformedURLException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -31,7 +32,8 @@ import com.danielstiner.cyride.widget.MyWidgetService;
 
 import de.akquinet.android.androlog.Log;
 
-public class PredictionsService extends android.app.Service implements IPredictions {
+public class PredictionsService extends android.app.Service implements
+		IPredictions {
 
 	public class LocalBinder extends Binder {
 		PredictionsService getService() {
@@ -50,6 +52,30 @@ public class PredictionsService extends android.app.Service implements IPredicti
 			NearbyStopPredictionsByRouteListeners.runAll(predictions);
 
 			MyWidgetService.updateNearbyWidgets(PredictionsService.this);
+		}
+	}
+
+	private class UpdateRouteStopTask extends
+			AsyncTask<RouteStop, Void, Collection<StopPrediction>> {
+
+		protected Collection<StopPrediction> doInBackground(
+				RouteStop... routeStops) {
+			try {
+				return mNextBusAPI.getRouteStopPredictions(Arrays
+						.asList(routeStops));
+			} catch (DocumentException e) {
+				Log.e(this, "UpdateRouteStopTask.doInBackground", e);
+			} catch (MalformedURLException e) {
+				Log.e(this, "UpdateRouteStopTask.doInBackground", e);
+			}
+			return null;
+		}
+
+		protected void onPostExecute(Collection<StopPrediction> predictions) {
+			for (StopPrediction p : predictions) {
+				if (RouteStopListeners.containsKey(p.routestop))
+					RouteStopListeners.get(p.routestop).runAll(p);
+			}
 		}
 	}
 
@@ -75,7 +101,7 @@ public class PredictionsService extends android.app.Service implements IPredicti
 	private Cache mCache;
 
 	private NextBusAPI mNextBusAPI;
-	
+
 	private CachePolicy mCachePolicy;
 
 	private CallbackManager<Collection<StopPrediction>> NearbyStopPredictionsByRouteListeners = new CallbackManager<Collection<StopPrediction>>();
@@ -108,16 +134,17 @@ public class PredictionsService extends android.app.Service implements IPredicti
 
 			try {
 				final Collection<Stop> allStops;
-				
-				if(mCachePolicy.shouldUpdateStops(mCache)) {
+
+				if (mCachePolicy.shouldUpdateStops(mCache)) {
 					allStops = mNextBusAPI.getStops();
 					mCache.setStops(allStops);
 				} else {
 					allStops = mCache.getStops();
 				}
-				
-				Collection<Stop> nearestStops = NextBusAPI.nearestStopPerRoute(allStops, location);
-				
+
+				Collection<Stop> nearestStops = NextBusAPI.nearestStopPerRoute(
+						allStops, location);
+
 				// TODO: Maybe only update stops that need updating
 
 				return mNextBusAPI.getStopPredictions(nearestStops);
@@ -147,16 +174,20 @@ public class PredictionsService extends android.app.Service implements IPredicti
 		mNextBusAPI = new NextBusAPI(Constants.AGENCY);
 
 		mCache = Cache.loadCache(Constants.AGENCY, this);
-		
+
 		mCachePolicy = new CachePolicy() {
-			
+
 			@Override
 			public boolean shouldUpdateStops(Cache cache) {
-				return mCache.lastStopsUpdated() == null; // TODO: Also update if more than a day old or something
+				return mCache.lastStopsUpdated() == null; // TODO: Also update
+															// if more than a
+															// day old or
+															// something
 			}
-			
+
 			@Override
-			public boolean shouldUpdateStopPredictions(StopPrediction c, Cache cache) {
+			public boolean shouldUpdateStopPredictions(StopPrediction c,
+					Cache cache) {
 				return true;
 			}
 		};
@@ -200,5 +231,10 @@ public class PredictionsService extends android.app.Service implements IPredicti
 	@Override
 	public void updateNearbyStopPredictionsByRoute() {
 		new UpdateNearbyTask().execute();
+	}
+
+	@Override
+	public void updateRouteStopPredictions(RouteStop rs) {
+		new UpdateRouteStopTask().execute(rs);
 	}
 }
