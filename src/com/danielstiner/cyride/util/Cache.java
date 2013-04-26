@@ -9,16 +9,12 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
 
 import android.app.Activity;
 import android.content.Context;
 
-import com.danielstiner.cyride.util.NextBusAPI.Route;
-import com.danielstiner.cyride.util.NextBusAPI.RouteStop;
-import com.danielstiner.cyride.util.NextBusAPI.Stop;
-import com.danielstiner.cyride.util.NextBusAPI.StopPrediction;
+import com.danielstiner.cyride.service.IPredictions.NearbyStopPredictions;
+import com.danielstiner.nextbus.NextBusAPI.Stop;
 
 import de.akquinet.android.androlog.Log;
 
@@ -79,6 +75,10 @@ public class Cache implements Serializable {
 
 	private Collection<Stop> mStops;
 	
+	private Date mNearbyLastUpdated;
+	
+	private NearbyStopPredictions mNearbyPredictions;
+	
 	public Cache(String agency) {
 		this.agency = agency;
 	}
@@ -118,5 +118,20 @@ public class Cache implements Serializable {
 	public void setStops(Collection<Stop> stops) {
 		mStopsLastUpdated = new Date();
 		mStops = stops;
+	}
+	
+	public Date nearbyLastUpdated() {
+		return mNearbyLastUpdated;
+	}
+
+	public NearbyStopPredictions getNearbyPredictions() {
+		return mNearbyPredictions;
+	}
+
+	public NearbyStopPredictions setNearbyPredictions(
+			NearbyStopPredictions predictions) {
+		mNearbyPredictions = predictions;
+		mNearbyLastUpdated = new Date();
+		return predictions;
 	}
 }

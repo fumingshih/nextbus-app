@@ -1,4 +1,4 @@
-package com.danielstiner.cyride.util;
+package com.danielstiner.nextbus;
 
 import java.io.Serializable;
 import java.net.MalformedURLException;
@@ -22,6 +22,8 @@ import org.dom4j.io.SAXReader;
 
 import android.graphics.Color;
 import android.location.Location;
+
+import com.danielstiner.cyride.util.LocationUtil;
 
 public class NextBusAPI {
 
@@ -66,9 +68,8 @@ public class NextBusAPI {
 	public static class Stop implements Serializable {
 		private static final long serialVersionUID = -426734608965295351L;
 
-		double latitude;
-
-		double longitude;
+		public final double latitude;
+		public final double longitude;
 
 		public final List<Route> routes = new LinkedList<NextBusAPI.Route>();
 
@@ -86,16 +87,20 @@ public class NextBusAPI {
 	public static class StopPrediction implements Serializable {
 		private static final long serialVersionUID = -5798823753170327173L;
 
-		public final List<Prediction> predictions = new LinkedList<Prediction>();
+		public final List<Prediction> predictions;
 
 		public final Route route;
 		public final RouteStop routestop;
 		public final Stop stop;
 
-		public StopPrediction(RouteStop routestop) {
+		public final Date timestamp;
+
+		public StopPrediction(RouteStop routestop, List<Prediction> predictions, Date timestamp) {
 			this.routestop = routestop;
 			this.route = routestop.route;
 			this.stop = routestop.stop;
+			this.predictions = predictions;
+			this.timestamp = timestamp;
 		}
 	}
 
@@ -245,7 +250,7 @@ public class NextBusAPI {
 
 	private static List<StopPrediction> parsePredictions(
 			Document predictions_document, Map<String, RouteStop> routeStopMap) {
-		List<StopPrediction> predictions = new ArrayList<StopPrediction>();
+		List<StopPrediction> routeStopPredictions = new ArrayList<StopPrediction>();
 
 		Element root = predictions_document.getRootElement();
 
@@ -255,9 +260,9 @@ public class NextBusAPI {
 			Element predictionsElement = i.next();
 
 			String routeTag = predictionsElement.attributeValue("routeTag");
-			String routeTitle = predictionsElement.attributeValue("routeTitle");
+			//String routeTitle = predictionsElement.attributeValue("routeTitle");
 			String stopTag = predictionsElement.attributeValue("stopTag");
-			String stopTitle = predictionsElement.attributeValue("stopTitle");
+			//String stopTitle = predictionsElement.attributeValue("stopTitle");
 			// String dirTitleBecauseNoPredictions = predictionsElement
 			// .attributeValue("dirTitleBecauseNoPredictions");
 			// String agencyTitle = predictionsElement
@@ -266,8 +271,7 @@ public class NextBusAPI {
 			if (null == predictionsElement.element("direction"))
 				continue;
 
-			StopPrediction p = new StopPrediction(getRouteStop(stopTag,
-					routeTag, routeStopMap));
+			List<Prediction> predictions = new LinkedList<NextBusAPI.Prediction>();
 
 			for (Iterator<Element> j = predictionsElement.element("direction")
 					.elementIterator("prediction"); j.hasNext();) {
@@ -277,15 +281,15 @@ public class NextBusAPI {
 				arrival.setTime(Long.parseLong(predictionElement
 						.attributeValue("epochTime")));
 
-				p.predictions.add(new Prediction(arrival));
+				predictions.add(new Prediction(arrival));
 
 			}
-
-			predictions.add(p);
-
+			
+			routeStopPredictions.add(new StopPrediction(getRouteStop(stopTag,
+					routeTag, routeStopMap), predictions, new Date()));
 		}
 
-		return predictions;
+		return routeStopPredictions;
 	}
 
 	private static RouteStop getRouteStop(String stopTag, String routeTag,

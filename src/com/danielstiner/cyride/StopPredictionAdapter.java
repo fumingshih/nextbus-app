@@ -7,8 +7,8 @@ import android.widget.ArrayAdapter;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-import com.danielstiner.cyride.util.NextBusAPI.StopPrediction;
 import com.danielstiner.cyride.util.TextFormat;
+import com.danielstiner.nextbus.NextBusAPI.StopPrediction;
 
 public class StopPredictionAdapter extends ArrayAdapter<StopPrediction> {
 

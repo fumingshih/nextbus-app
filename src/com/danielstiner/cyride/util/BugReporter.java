@@ -7,6 +7,7 @@ import com.danielstiner.cyride.R;
 import de.akquinet.android.androlog.reporter.MailReporter;
 
 import android.content.Context;
+import android.os.Looper;
 import android.widget.Toast;
 
 public class BugReporter implements
@@ -22,8 +23,11 @@ public class BugReporter implements
 	@Override
 	public boolean send(Context context, String message, Throwable error) {
 
-		Toast.makeText(context, R.string.crash_toast_text, Toast.LENGTH_LONG)
-				.show();
+		if (Looper.myLooper() == null)
+			Looper.prepare();
+
+		Toast.makeText(context.getApplicationContext(),
+				R.string.crash_toast_text, Toast.LENGTH_LONG).show();
 
 		return reporter.send(context, message, error);
 	}

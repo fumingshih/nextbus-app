@@ -4,9 +4,9 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
 
-import com.danielstiner.cyride.util.NextBusAPI.Prediction;
-import com.danielstiner.cyride.util.NextBusAPI.Route;
-import com.danielstiner.cyride.util.NextBusAPI.Stop;
+import com.danielstiner.nextbus.NextBusAPI.Prediction;
+import com.danielstiner.nextbus.NextBusAPI.Route;
+import com.danielstiner.nextbus.NextBusAPI.Stop;
 
 public class TextFormat {
 	

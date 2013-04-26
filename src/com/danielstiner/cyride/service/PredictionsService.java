@@ -15,8 +15,10 @@ import android.location.Location;
 import android.location.LocationManager;
 import android.os.AsyncTask;
 import android.os.Binder;
+import android.os.Handler;
 import android.os.IBinder;
 
+import com.danielstiner.cyride.behavior.IPredictionUpdateStrategy;
 import com.danielstiner.cyride.util.Cache;
 import com.danielstiner.cyride.util.CachePolicy;
 import com.danielstiner.cyride.util.Callback;
@@ -24,11 +26,11 @@ import com.danielstiner.cyride.util.CallbackManager;
 import com.danielstiner.cyride.util.Constants;
 import com.danielstiner.cyride.util.Functor1;
 import com.danielstiner.cyride.util.LocationUtil;
-import com.danielstiner.cyride.util.NextBusAPI;
-import com.danielstiner.cyride.util.NextBusAPI.RouteStop;
-import com.danielstiner.cyride.util.NextBusAPI.Stop;
-import com.danielstiner.cyride.util.NextBusAPI.StopPrediction;
 import com.danielstiner.cyride.widget.MyWidgetService;
+import com.danielstiner.nextbus.NextBusAPI;
+import com.danielstiner.nextbus.NextBusAPI.RouteStop;
+import com.danielstiner.nextbus.NextBusAPI.Stop;
+import com.danielstiner.nextbus.NextBusAPI.StopPrediction;
 
 import de.akquinet.android.androlog.Log;
 
@@ -42,13 +44,16 @@ public class PredictionsService extends android.app.Service implements
 	}
 
 	private class UpdateNearbyTask extends
-			AsyncTask<Void, Void, Collection<StopPrediction>> {
+			AsyncTask<Void, Void, NearbyStopPredictions> {
 
-		protected Collection<StopPrediction> doInBackground(Void... stuff) {
+		protected NearbyStopPredictions doInBackground(Void... stuff) {
 			return getLatestNearbyStopPredictions();
 		}
 
-		protected void onPostExecute(Collection<StopPrediction> predictions) {
+		protected void onPostExecute(NearbyStopPredictions predictions) {
+			if (predictions == null)
+				return;
+
 			NearbyStopPredictionsByRouteListeners.runAll(predictions);
 
 			MyWidgetService.updateNearbyWidgets(PredictionsService.this);
@@ -104,14 +109,17 @@ public class PredictionsService extends android.app.Service implements
 
 	private CachePolicy mCachePolicy;
 
-	private CallbackManager<Collection<StopPrediction>> NearbyStopPredictionsByRouteListeners = new CallbackManager<Collection<StopPrediction>>();
+	private CallbackManager<NearbyStopPredictions> NearbyStopPredictionsByRouteListeners = new CallbackManager<NearbyStopPredictions>();
 
 	private Map<RouteStop, CallbackManager<StopPrediction>> RouteStopListeners = new HashMap<RouteStop, CallbackManager<StopPrediction>>();
 
 	@Override
 	public void addNearbyStopPredictionsByRouteListener(
-			StopPredictionsListener predictionListener) {
+			NearbyStopPredictionsListener predictionListener) {
 		NearbyStopPredictionsByRouteListeners.addListener(predictionListener);
+
+		if (mCache.getNearbyPredictions() != null)
+			predictionListener.run(mCache.getNearbyPredictions());
 	}
 
 	@Override
@@ -126,7 +134,19 @@ public class PredictionsService extends android.app.Service implements
 	}
 
 	@Override
-	public Collection<StopPrediction> getLatestNearbyStopPredictions() {
+	public NearbyStopPredictions getLatestNearbyStopPredictions(
+			IPredictionUpdateStrategy updateStrategy) {
+
+		if (updateStrategy.nextPredictionUpdate(mCache.getNearbyPredictions())
+				.isAfterNow()) {
+			return getLatestNearbyStopPredictions();
+		} else {
+			return mCache.getNearbyPredictions();
+		}
+	}
+
+	private NearbyStopPredictions getLatestNearbyStopPredictions() {
+
 		LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
 		Location location = LocationUtil.getBestCurrentLocation(lm);
 
@@ -146,8 +166,10 @@ public class PredictionsService extends android.app.Service implements
 						allStops, location);
 
 				// TODO: Maybe only update stops that need updating
-
-				return mNextBusAPI.getStopPredictions(nearestStops);
+				return mCache
+						.setNearbyPredictions(new NearbyStopPredictions(
+								mNextBusAPI.getStopPredictions(nearestStops),
+								location));
 
 			} catch (MalformedURLException e) {
 				Log.e(this, "UpdateNearbyTask.doInBackground objectIn.close", e);
@@ -157,7 +179,7 @@ public class PredictionsService extends android.app.Service implements
 
 		}
 
-		return new LinkedList<StopPrediction>();
+		return new NearbyStopPredictions(new LinkedList<StopPrediction>(), null);
 	}
 
 	@Override
@@ -184,12 +206,6 @@ public class PredictionsService extends android.app.Service implements
 															// day old or
 															// something
 			}
-
-			@Override
-			public boolean shouldUpdateStopPredictions(StopPrediction c,
-					Cache cache) {
-				return true;
-			}
 		};
 	}
 
@@ -209,7 +225,7 @@ public class PredictionsService extends android.app.Service implements
 
 	@Override
 	public void removeNearbyStopPredictionsByRouteListener(
-			StopPredictionsListener predictionListener) {
+			NearbyStopPredictionsListener predictionListener) {
 		NearbyStopPredictionsByRouteListeners
 				.removeListener(predictionListener);
 	}
@@ -230,11 +246,22 @@ public class PredictionsService extends android.app.Service implements
 
 	@Override
 	public void updateNearbyStopPredictionsByRoute() {
-		new UpdateNearbyTask().execute();
+//		if (updateStrategy.nextPredictionUpdate(mCache.getNearbyPredictions())
+//				.isAfterNow())
+			new UpdateNearbyTask().execute();
 	}
 
 	@Override
-	public void updateRouteStopPredictions(RouteStop rs) {
+	public void updateRouteStopPredictions(RouteStop rs,
+			IPredictionUpdateStrategy updateStrategy) {
+		// TODO Try to cache these
 		new UpdateRouteStopTask().execute(rs);
+	}
+
+	@Override
+	public Location getLastKnownLocation() {
+		LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+		Location location = LocationUtil.getBestCurrentLocation(lm);
+		return location;
 	}
 }

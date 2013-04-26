@@ -1,5 +1,7 @@
 package com.danielstiner.cyride.service;
 
+import org.joda.time.DateTime;
+
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
@@ -10,17 +12,18 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.support.v4.app.NotificationCompat;
-import android.widget.RemoteViews;
 
 import com.danielstiner.cyride.MainActivity;
 import com.danielstiner.cyride.R;
+import com.danielstiner.cyride.behavior.AccuratePredictionUpdates;
+import com.danielstiner.cyride.behavior.IPredictionUpdateStrategy;
 import com.danielstiner.cyride.util.Callback;
-import com.danielstiner.cyride.util.Constants;
-import com.danielstiner.cyride.util.NextBusAPI;
-import com.danielstiner.cyride.util.NextBusAPI.RouteStop;
-import com.danielstiner.cyride.util.NextBusAPI.StopPrediction;
+import com.danielstiner.cyride.util.PredictionsUpdater;
+import com.danielstiner.cyride.util.Task;
 import com.danielstiner.cyride.util.TextFormat;
-import com.danielstiner.cyride.view.RemoteViewsProvider;
+import com.danielstiner.nextbus.NextBusAPI;
+import com.danielstiner.nextbus.NextBusAPI.RouteStop;
+import com.danielstiner.nextbus.NextBusAPI.StopPrediction;
 
 import de.akquinet.android.androlog.Log;
 
@@ -34,30 +37,64 @@ public class NotificationService extends Service {
 
 	private final static String CLASS = "com.danielstiner.cyride.service";
 
-	public static final String INTENT_EXTRA_SHOW_STOP_PREDICTIONS = CLASS
-			+ ".show_routestop_predictions";
+	private static final String INTENT_ACTION_DELETE = CLASS + ".ACTION_DELETE";
 
+	private static final String INTENT_ACTION_NOTIFY = CLASS + ".ACTION_NOTIFY";
+
+	private static final String INTENT_EXTRA_ROUTE_STOP = CLASS + ".ROUTE_STOP";
+
+	private static final String INTENT_EXTRA_ROUTE_STOP_PREDICTION = CLASS
+			+ ".ROUTE_STOP_PREDICTION";
 	private final static int NOTIFICATION = R.string.local_service_started;
 
-	public static final String ACTION_NOTIFY = CLASS + ".ACTION_NOTIFY";
+	public static Intent getFillInIntent(StopPrediction p) {
+		Bundle extras = new Bundle();
+		extras.putSerializable(INTENT_EXTRA_ROUTE_STOP_PREDICTION, p);
+		Intent fillInIntent = new Intent();
+		fillInIntent.putExtras(extras);
+		return fillInIntent;
+	}
 
-	public static void putExtraRouteStop(Bundle extras, RouteStop routestop) {
-		extras.putSerializable(
-				NotificationService.INTENT_EXTRA_SHOW_STOP_PREDICTIONS,
-				routestop);
+	public static PendingIntent getTemplatePendingIntent(Context context,
+			Bundle extras) {
+		Intent templateIntent = new Intent(context, NotificationService.class);
+		templateIntent.putExtras(extras);
+		templateIntent.setAction(NotificationService.INTENT_ACTION_NOTIFY);
+		return PendingIntent.getService(context, 0, templateIntent,
+				PendingIntent.FLAG_CANCEL_CURRENT);
 	}
 
 	public static void showStopPredictions(Context context,
 			NextBusAPI.RouteStop stopAndRoute) {
 		Intent i = new Intent(context, NotificationService.class);
-		i.setAction(NotificationService.ACTION_NOTIFY);
-		i.putExtra(INTENT_EXTRA_SHOW_STOP_PREDICTIONS, stopAndRoute);
+		i.setAction(NotificationService.INTENT_ACTION_NOTIFY);
+		i.putExtra(INTENT_EXTRA_ROUTE_STOP, stopAndRoute);
+		context.startService(i);
+	}
+
+	public static void showStopPredictions(Context context,
+			NextBusAPI.StopPrediction stopAndRoutePrediction) {
+		Intent i = new Intent(context, NotificationService.class);
+		i.setAction(NotificationService.INTENT_ACTION_NOTIFY);
+		i.putExtra(INTENT_EXTRA_ROUTE_STOP_PREDICTION, stopAndRoutePrediction);
 		context.startService(i);
 	}
 
 	private final IBinder mBinder = new LocalBinder();
 
 	private NotificationCompat.Builder mBuilder;
+
+	private Callback<StopPrediction> mCallbackPredictionUpdate = new Callback<StopPrediction>() {
+		@Override
+		public void run(StopPrediction prediction) {
+			setCurrentPredictions(prediction);
+			mPredictionsUpdater.scheduleUpdate();
+		}
+	};
+
+	private StopPrediction mCurrentRouteStopPrediction;
+
+	private Handler mHandler;
 
 	private int mNotificationId = 1;
 
@@ -67,6 +104,31 @@ public class NotificationService extends Service {
 
 	private final ServiceConnector<IPredictions> mPredictionsService = PredictionsService
 			.createConnection();
+
+	private IPredictionUpdateStrategy mPredictionUpdateStrategy = new AccuratePredictionUpdates();
+
+	private Callback<IPredictions> mScheduledPredictionsUpdater = new Callback<IPredictions>() {
+		@Override
+		public void run(IPredictions predictions) {
+			if (null != mCurrentRouteStopPrediction)
+				predictions.updateRouteStopPredictions(
+						mCurrentRouteStopPrediction.routestop,
+						mPredictionUpdateStrategy);
+		}
+	};
+
+	private final PredictionsUpdater mPredictionsUpdater = new PredictionsUpdater(
+			new Task<DateTime>() {
+				@Override
+				public DateTime get() {
+					return mPredictionUpdateStrategy.nextPredictionUpdate(mCurrentRouteStopPrediction);
+				}
+			}, new Runnable() {
+				@Override
+				public void run() {
+					mPredictionsService.schedule(mScheduledPredictionsUpdater);
+				}
+			});
 
 	private void buildNotification() {
 		mBuilder.setSmallIcon(R.drawable.ic_launcher)
@@ -79,30 +141,30 @@ public class NotificationService extends Service {
 								MainActivity.class),
 								PendingIntent.FLAG_UPDATE_CURRENT))
 				.setDeleteIntent(
-						PendingIntent.getService(this, 0, new Intent(this, // TODO
-																			// This
-																			// intent
-																			// should
-																			// kill
-																			// the
-																			// service
-								NotificationService.class),
-								PendingIntent.FLAG_UPDATE_CURRENT));
+						PendingIntent.getService(this, 0, new Intent(this,
+								NotificationService.class)
+								.setAction(INTENT_ACTION_DELETE),
+								PendingIntent.FLAG_CANCEL_CURRENT));
 		// setUsesChronometer
 
 	}
 
 	private void handleIntent(Intent intent) {
-
-		if (intent.hasExtra(INTENT_EXTRA_SHOW_STOP_PREDICTIONS)) {
-			// Parse out and show stop from intent
-			showRouteStop((RouteStop) intent
-					.getSerializableExtra(INTENT_EXTRA_SHOW_STOP_PREDICTIONS));
-		}
-		
-		if(ACTION_NOTIFY.equals(intent.getAction())) {
-			showRouteStop((RouteStop) intent
-					.getSerializableExtra(INTENT_EXTRA_SHOW_STOP_PREDICTIONS));
+		if (INTENT_ACTION_NOTIFY.equals(intent.getAction())) {
+			if (intent.hasExtra(INTENT_EXTRA_ROUTE_STOP_PREDICTION)) {
+				showRouteStopWithInitialPrediction((StopPrediction) intent
+						.getSerializableExtra(INTENT_EXTRA_ROUTE_STOP_PREDICTION));
+			} else if (intent.hasExtra(INTENT_EXTRA_ROUTE_STOP)) {
+				showRouteStop((RouteStop) intent
+						.getSerializableExtra(INTENT_EXTRA_ROUTE_STOP));
+			} else {
+				Log.e(this,
+						"Got a handleIntent call with the action notify, but not the correct extra");
+			}
+		} else if (INTENT_ACTION_DELETE.equals(intent.getAction())) {
+			Log.v(this,
+					"Stopping notifcation service");
+			stopSelf();
 		}
 	}
 
@@ -120,6 +182,8 @@ public class NotificationService extends Service {
 		mPredictionsService.bind(this);
 
 		mBuilder = new NotificationCompat.Builder(this);
+
+		mHandler = new Handler();
 
 		mNotificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
 	}
@@ -142,24 +206,37 @@ public class NotificationService extends Service {
 		return START_NOT_STICKY;
 	}
 
-	private void setRouteStopPredictions(RouteStop rs, StopPrediction prediction) {
+	private void setCurrentPredictions(StopPrediction prediction) {
+		mCurrentRouteStopPrediction = prediction;
+		Log.v(this, "setCurrentPredictions");
 		updateNotification(prediction);
 	}
 
 	private void showRouteStop(final RouteStop rs) {
+		final RouteStop previous = (null == mCurrentRouteStopPrediction) ? null
+				: mCurrentRouteStopPrediction.routestop;
+
+		Log.v(this, "showRouteStop " + rs);
+
 		mPredictionsService.schedule(new Callback<IPredictions>() {
 			@Override
 			public void run(IPredictions predictions) {
-				predictions.addRouteStopListener(rs,
-						new Callback<StopPrediction>() {
-							@Override
-							public void run(StopPrediction prediction) {
-								setRouteStopPredictions(rs, prediction);
-							}
-						});
-				predictions.updateRouteStopPredictions(rs);
+				if (!rs.equals(previous)) {
+					if (previous != null)
+						predictions.removeRouteStopListener(rs,
+								mCallbackPredictionUpdate);
+					predictions.addRouteStopListener(rs,
+							mCallbackPredictionUpdate);
+				}
 			}
 		});
+
+		mPredictionsUpdater.start(mHandler);
+	}
+
+	private void showRouteStopWithInitialPrediction(final StopPrediction p) {
+		setCurrentPredictions(p);
+		showRouteStop(p.routestop);
 	}
 
 	private void updateNotification(StopPrediction p) {
@@ -189,7 +266,7 @@ public class NotificationService extends Service {
 				+ TextFormat.toString(p.stop);
 
 		mBuilder.setContentTitle(title).setContentText(text)
-				.setContentInfo(info).setWhen(when).setTicker(tickerText);
+				.setWhen(when).setTicker(tickerText);
 
 		mNotificationManager
 				.notify(mNotificationId, mBuilder.getNotification());

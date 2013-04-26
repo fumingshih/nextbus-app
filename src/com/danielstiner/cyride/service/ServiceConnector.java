@@ -55,6 +55,14 @@ public class ServiceConnector<ServiceInterface> {
 					Context.BIND_AUTO_CREATE);
 		mIsBound = true;
 	}
+	
+	public void bind(Context context, Callback<ServiceInterface> firstTask) {
+		if (!mIsBound)
+			context.bindService(new Intent(context, serviceClass), mConnection,
+					Context.BIND_AUTO_CREATE);
+		mIsBound = true;
+		schedule(firstTask);
+	}
 
 	public void maybeNow(Callback<ServiceInterface> callback) {
 		if (mIsBound && null != mBoundService) {
@@ -62,16 +70,27 @@ public class ServiceConnector<ServiceInterface> {
 		}
 	}
 
-	public void schedule(Callback<ServiceInterface> callback) {
+	public void schedule(Callback<ServiceInterface> task) {
 		if (mIsBound && null != mBoundService) {
-			callback.run(mBoundService);
+			task.run(mBoundService);
 		} else {
-			mScheduledCallbacks.add(callback);
+			mScheduledCallbacks.add(task);
 		}
 	}
 
 	public void unbind(Context context) {
 		if (mIsBound) {
+			// Detach our existing connection.
+			context.unbindService(mConnection);
+			mIsBound = false;
+		}
+	}
+
+	public void unbind(Context context, Callback<ServiceInterface> lastTask) {
+		if (mIsBound) {
+			// Run the last task if possible
+			if (null != mBoundService)
+				lastTask.run(mBoundService);
 			// Detach our existing connection.
 			context.unbindService(mConnection);
 			mIsBound = false;

@@ -5,6 +5,8 @@ import java.util.List;
 import android.location.Location;
 import android.location.LocationManager;
 
+import com.danielstiner.nextbus.NextBusAPI.Stop;
+
 public class LocationUtil {
 
 	public static double distance(double lat, double lng, Location l) {
@@ -37,6 +39,12 @@ public class LocationUtil {
 		}
 
 		return bestLoc;
+	}
+
+	public static int compareDistance(Stop stop1, Stop stop2, Location target) {
+		double dist1 = distance(stop1.latitude, stop1.longitude, target);
+		double dist2 = distance(stop2.latitude, stop2.longitude, target);
+		return Double.compare(dist1, dist2);
 	}
 
 }
