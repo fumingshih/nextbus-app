@@ -55,8 +55,10 @@ public class PredictionsService extends android.app.Service implements
 		}
 
 		protected void onPostExecute(NearbyStopPredictions predictions) {
-			if (predictions == null)
+			if (predictions == null) {
+				// TODO schedule reasonable timeout on mNearbyUpdateScheduler
 				return;
+			}
 
 			NearbyStopPredictionsByRouteListeners.runAll(predictions);
 
@@ -243,9 +245,9 @@ public class PredictionsService extends android.app.Service implements
 								location));
 
 			} catch (MalformedURLException e) {
-				Log.e(this, "UpdateNearbyTask.doInBackground objectIn.close", e);
+				Log.w(this, "UpdateNearbyTask.doInBackground objectIn.close", e);
 			} catch (DocumentException e) {
-				Log.e(this, "UpdateNearbyTask.doInBackground objectIn.close", e);
+				Log.w(this, "UpdateNearbyTask.doInBackground objectIn.close", e);
 			}
 
 		}
