@@ -1,5 +1,7 @@
 package com.danielstiner.cyride.service;
 
+import org.joda.time.DateTime;
+
 import android.app.AlarmManager;
 import android.app.Notification;
 import android.app.NotificationManager;
@@ -18,6 +20,7 @@ import com.danielstiner.cyride.R;
 import com.danielstiner.cyride.behavior.AccuratePredictionUpdates;
 import com.danielstiner.cyride.behavior.IPredictionUpdateStrategy;
 import com.danielstiner.cyride.util.Callback;
+import com.danielstiner.cyride.util.Constants;
 import com.danielstiner.cyride.util.TextFormat;
 import com.danielstiner.nextbus.NextBusAPI;
 import com.danielstiner.nextbus.NextBusAPI.RouteStop;
@@ -201,14 +204,16 @@ public class NotificationService extends Service {
 		}
 
 		long triggerAtMillis = calculateAlarmWakeup();
-		
-		Log.v(this, "Scheduling alarm in " + triggerAtMillis/1000 + "s");
+
+		Log.v(this, "Scheduling alarm in " + triggerAtMillis / 1000 + "s");
 
 		am.set(AlarmManager.RTC_WAKEUP, triggerAtMillis, mAlarmPendingIntent);
 	}
 
 	private long calculateAlarmWakeup() {
-		return mCurrentRouteStopPrediction.predictions.get(0).arrival.getTime();
+		return new DateTime(
+				mCurrentRouteStopPrediction.predictions.get(0).arrival)
+				.minusMinutes(Constants.NOTIFY_MINUTES_EARLY).getMillis();
 	}
 
 	private void onAlarm() {
