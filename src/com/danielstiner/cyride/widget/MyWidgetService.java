@@ -6,6 +6,8 @@ import java.util.Comparator;
 import java.util.List;
 
 import android.annotation.TargetApi;
+import android.app.AlarmManager;
+import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;
 import android.content.ComponentName;
 import android.content.Context;
@@ -34,13 +36,59 @@ class MyRemoteViewsFactory implements
 	@SuppressWarnings("unused")
 	private int mAppWidgetId;
 
+	private IPredictionUpdateStrategy mPredictionUpdateStrategy = new ConservativePredictionUpdates();
+
 	private ServiceConnector<IPredictions> mConn = PredictionsService
 			.createConnection();
 	private Context mContext;
 
-	private IPredictionUpdateStrategy mPredictionUpdateStrategy = new ConservativePredictionUpdates();
-
 	private final List<StopPrediction> mRouteStopPredictions = new ArrayList<StopPrediction>();
+
+	private final Callback<IPredictions> mPredictionsServiceCallback = new Callback<IPredictions>() {
+		@Override
+		public void run(IPredictions predictions) {
+			final NearbyStopPredictions p = predictions
+					.getLatestNearbyStopPredictions(mPredictionUpdateStrategy);
+
+			mRouteStopPredictions.clear();
+
+			if (p != null) {
+				mRouteStopPredictions.addAll(p.predictions);
+				Collections.sort(mRouteStopPredictions,
+						new Comparator<StopPrediction>() {
+							@Override
+							public int compare(StopPrediction lhs,
+									StopPrediction rhs) {
+								return LocationUtil.compareDistance(lhs.stop,
+										rhs.stop, p.near);
+							}
+						});
+			}
+
+			// Schedule next update
+			setAlarm(p);
+		}
+	};
+
+	private PendingIntent mAlarmPendingIntent;
+
+	private void setAlarm(NearbyStopPredictions p) {
+		final AlarmManager am = (AlarmManager) mContext
+				.getSystemService(Context.ALARM_SERVICE);
+
+		if (mAlarmPendingIntent == null) {
+			mAlarmPendingIntent = MyWidgetService
+					.buildUpdateNearbyWidgetsPendingIntent(mContext);
+		}
+
+		long triggerAtMillis = calculateAlarmWakeup(p);
+
+		am.set(AlarmManager.RTC_WAKEUP, triggerAtMillis, mAlarmPendingIntent);
+	}
+
+	private long calculateAlarmWakeup(NearbyStopPredictions p) {
+		return mPredictionUpdateStrategy.nextPredictionUpdate(p).getMillis();
+	}
 
 	public MyRemoteViewsFactory(Context context, Intent intent) {
 		mContext = context;
@@ -97,29 +145,7 @@ class MyRemoteViewsFactory implements
 
 	@Override
 	public void onDataSetChanged() {
-		mConn.maybeNow(new Callback<IPredictions>() {
-			@Override
-			public void run(IPredictions predictions) {
-				final NearbyStopPredictions prediction = predictions
-						.getLatestNearbyStopPredictions(mPredictionUpdateStrategy);
-
-				mRouteStopPredictions.clear();
-
-				if (prediction != null) {
-					mRouteStopPredictions.addAll(prediction.predictions);
-					Collections.sort(mRouteStopPredictions,
-							new Comparator<StopPrediction>() {
-								@Override
-								public int compare(StopPrediction lhs,
-										StopPrediction rhs) {
-									return LocationUtil
-											.compareDistance(lhs.stop,
-													rhs.stop, prediction.near);
-								}
-							});
-				}
-			}
-		});
+		mConn.maybeNow(mPredictionsServiceCallback);
 	}
 
 	@Override
@@ -133,23 +159,30 @@ public class MyWidgetService extends android.widget.RemoteViewsService {
 
 	private final static String CLASS = "com.danielstiner.cyride.widget.NearbyWidgetService";
 
-	private static final String INTENT_EXTRA_UPDATE_NEARBY = CLASS
+	private static final String INTENT_ACTION_UPDATE_NEARBY = CLASS
 			+ ".update_nearby";
 
 	public static void updateNearbyWidgets(Context context) {
 		if (android.os.Build.VERSION.SDK_INT >= 11) {
 			Intent i = new Intent(context, MyWidgetService.class);
-			i.putExtra(INTENT_EXTRA_UPDATE_NEARBY, true);
+			i.setAction(INTENT_ACTION_UPDATE_NEARBY);
 			context.getApplicationContext().startService(i);
 		}
 	}
 
+	public static PendingIntent buildUpdateNearbyWidgetsPendingIntent(
+			Context context) {
+		return PendingIntent.getService(context, 0, new Intent(context,
+				MyWidgetService.class).setAction(INTENT_ACTION_UPDATE_NEARBY),
+				PendingIntent.FLAG_CANCEL_CURRENT);
+	}
+	
 	private void handleIntent(Intent intent) {
 
 		if (intent == null)
 			return;
 
-		if (intent.getBooleanExtra(INTENT_EXTRA_UPDATE_NEARBY, false)) {
+		if (INTENT_ACTION_UPDATE_NEARBY.equals(intent.getAction())) {
 			updateWidgets();
 		}
 	}
@@ -175,6 +208,7 @@ public class MyWidgetService extends android.widget.RemoteViewsService {
 	}
 
 	private void updateWidgets() {
+		Log.v(CLASS, "updateWidgets");
 		AppWidgetManager mgr = AppWidgetManager.getInstance(this);
 		mgr.notifyAppWidgetViewDataChanged(
 				mgr.getAppWidgetIds(new ComponentName(this,

@@ -2,8 +2,6 @@ package com.danielstiner.cyride;
 
 import java.util.Comparator;
 
-import org.joda.time.DateTime;
-
 import android.app.Activity;
 import android.content.Context;
 import android.os.Bundle;
@@ -24,8 +22,6 @@ import com.danielstiner.cyride.service.ServiceConnector;
 import com.danielstiner.cyride.util.Callback;
 import com.danielstiner.cyride.util.Constants;
 import com.danielstiner.cyride.util.LocationUtil;
-import com.danielstiner.cyride.util.PredictionsUpdater;
-import com.danielstiner.cyride.util.Task;
 import com.danielstiner.nextbus.NextBusAPI.StopPrediction;
 
 import de.akquinet.android.androlog.Log;
@@ -40,13 +36,16 @@ public class NearbyStopsFragment extends ListFragment {
 		@Override
 		public void run(final NearbyStopPredictions prediction) {
 			mLastNearbyPredictions = prediction;
-			
-			Log.v(this, "Got " + prediction.predictions.size() + " new nearby predictions");
 
+			Log.v(this, "Got " + prediction.predictions.size()
+					+ " new nearby predictions");
+
+			// TODO Group by stop
 			mAdapter.clear();
 			for (StopPrediction sp : prediction.predictions) {
 				mAdapter.add(sp);
 			}
+			// Handled by the sort implicitly
 			// mAdapter.notifyDataSetChanged();
 
 			mAdapter.sort(new Comparator<StopPrediction>() {
@@ -56,8 +55,6 @@ public class NearbyStopsFragment extends ListFragment {
 							prediction.near);
 				}
 			});
-			
-			mPredictionsUpdater.scheduleUpdate();
 		}
 	};
 
@@ -66,24 +63,6 @@ public class NearbyStopsFragment extends ListFragment {
 
 	private final IPredictionUpdateStrategy mPredictionUpdateStrategy = new AccuratePredictionUpdates();
 
-	private final PredictionsUpdater mPredictionsUpdater = new PredictionsUpdater(
-			new Task<DateTime>() {
-				@Override
-				public DateTime get() {
-					return mPredictionUpdateStrategy.nextPredictionUpdate(mLastNearbyPredictions);
-				}
-			}, new Runnable() {
-				@Override
-				public void run() {
-					mPredictionsService.schedule(new Callback<IPredictions>() {
-						@Override
-						public void run(IPredictions service) {
-							service.updateNearbyStopPredictionsByRoute();
-						}
-					});
-				}
-			});
-
 	private final Runnable mViewUpdater = new Runnable() {
 		@Override
 		public void run() {
@@ -91,6 +70,18 @@ public class NearbyStopsFragment extends ListFragment {
 				mAdapter.notifyDataSetChanged();
 
 			mHandler.postDelayed(mViewUpdater, Constants.VIEW_UPDATE_INTERVAL);
+		}
+	};
+	private Callback<IPredictions> mUnregisterNearbyListener = new Callback<IPredictions>() {
+		@Override
+		public void run(IPredictions service) {
+			service.removeNearbyStopPredictionsByRouteListener(mPredictionListener);
+		}
+	};
+	private Callback<IPredictions> mRegisterNearbyListener = new Callback<IPredictions>() {
+		@Override
+		public void run(IPredictions service) {
+			service.addNearbyStopPredictionsByRouteListener(mPredictionListener, mPredictionUpdateStrategy);
 		}
 	};
 
@@ -112,24 +103,19 @@ public class NearbyStopsFragment extends ListFragment {
 	public void onAttach(Activity activity) {
 		super.onAttach(activity);
 
-		mPredictionsService.bind(activity, new Callback<IPredictions>() {
-			@Override
-			public void run(IPredictions service) {
-				service.addNearbyStopPredictionsByRouteListener(mPredictionListener);
-			}
-		});
+		mPredictionsService.bind(activity);
 
 	}
 
 	@Override
 	public void onStart() {
-		mPredictionsUpdater.start(mHandler);
+		mPredictionsService.schedule(mRegisterNearbyListener);
 		super.onStart();
 	}
 
 	@Override
 	public void onStop() {
-		mPredictionsUpdater.stop();
+		mPredictionsService.schedule(mUnregisterNearbyListener);
 		super.onStop();
 	}
 
@@ -145,12 +131,7 @@ public class NearbyStopsFragment extends ListFragment {
 	public void onDetach() {
 		super.onDetach();
 
-		mPredictionsService.unbind(getActivity(), new Callback<IPredictions>() {
-			@Override
-			public void run(IPredictions service) {
-				service.removeNearbyStopPredictionsByRouteListener(mPredictionListener);
-			}
-		});
+		mPredictionsService.unbind(getActivity());
 	};
 
 	@Override

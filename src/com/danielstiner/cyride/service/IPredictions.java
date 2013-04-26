@@ -25,10 +25,10 @@ public interface IPredictions {
 	}
 
 	public abstract void addNearbyStopPredictionsByRouteListener(
-			NearbyStopPredictionsListener predictionsListener);
+			NearbyStopPredictionsListener predictionsListener, IPredictionUpdateStrategy predictionUpdateStrategy);
 
 	public abstract void addRouteStopListener(RouteStop rs,
-			Callback<StopPrediction> predictionListener);
+			Callback<StopPrediction> predictionListener, IPredictionUpdateStrategy updateStrategy);
 
 	public abstract NearbyStopPredictions getLatestNearbyStopPredictions(
 			IPredictionUpdateStrategy mPredictionUpdateStrategy);

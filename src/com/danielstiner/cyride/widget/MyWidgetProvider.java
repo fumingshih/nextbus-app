@@ -15,6 +15,8 @@ import com.danielstiner.cyride.MainActivity;
 import com.danielstiner.cyride.R;
 import com.danielstiner.cyride.service.NotificationService;
 
+import de.akquinet.android.androlog.Log;
+
 @TargetApi(Build.VERSION_CODES.ICE_CREAM_SANDWICH)
 public class MyWidgetProvider extends AppWidgetProvider {
 
@@ -23,7 +25,14 @@ public class MyWidgetProvider extends AppWidgetProvider {
 	@Override
 	public void onEnabled(Context context) {
 		MyWidgetService.updateNearbyWidgets(context);
-		throw new RuntimeException("arst");
+		Log.v(this, "onEnabled");
+		super.onEnabled(context);
+	}
+	
+	@Override
+	public void onDisabled(Context context) {
+		Log.v(this, "onDisabled");
+		super.onDisabled(context);
 	}
 
 	public void onUpdate(Context context, AppWidgetManager appWidgetManager,
@@ -60,6 +69,7 @@ public class MyWidgetProvider extends AppWidgetProvider {
 			// FIXME - should define empty view
 			views.setEmptyView(R.id.widget_listview, R.id.widget_listview);
 
+			// Setup PendingIntent template for item clicks
 			Bundle extras = new Bundle();
 			extras.putInt(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetIds[i]);
 			views.setPendingIntentTemplate(R.id.widget_listview,

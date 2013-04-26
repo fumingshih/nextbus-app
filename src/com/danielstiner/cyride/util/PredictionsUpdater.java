@@ -22,7 +22,7 @@ public class PredictionsUpdater {
 		this.mTask = task;
 	}
 
-	public void scheduleUpdate() {
+	private void scheduleUpdate() {
 		DateTime updateAt = mPredictionTimeUpdateCalculator.get();
 
 		if (this.nextScheduledUpdate != null
@@ -40,7 +40,7 @@ public class PredictionsUpdater {
 		mHandler.postDelayed(mTask, delayMillis);
 	}
 
-	public void start(Handler handler) {
+	public void schedule(Handler handler) {
 		this.mHandler = handler;
 		scheduleUpdate();
 	}

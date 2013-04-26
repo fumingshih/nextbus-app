@@ -1,7 +1,7 @@
 package com.danielstiner.cyride.service;
 
-import org.joda.time.DateTime;
-
+import android.app.AlarmManager;
+import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
@@ -9,17 +9,15 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Binder;
 import android.os.Bundle;
-import android.os.Handler;
 import android.os.IBinder;
 import android.support.v4.app.NotificationCompat;
+import android.support.v4.app.NotificationCompat.Builder;
 
 import com.danielstiner.cyride.MainActivity;
 import com.danielstiner.cyride.R;
 import com.danielstiner.cyride.behavior.AccuratePredictionUpdates;
 import com.danielstiner.cyride.behavior.IPredictionUpdateStrategy;
 import com.danielstiner.cyride.util.Callback;
-import com.danielstiner.cyride.util.PredictionsUpdater;
-import com.danielstiner.cyride.util.Task;
 import com.danielstiner.cyride.util.TextFormat;
 import com.danielstiner.nextbus.NextBusAPI;
 import com.danielstiner.nextbus.NextBusAPI.RouteStop;
@@ -40,6 +38,8 @@ public class NotificationService extends Service {
 	private static final String INTENT_ACTION_DELETE = CLASS + ".ACTION_DELETE";
 
 	private static final String INTENT_ACTION_NOTIFY = CLASS + ".ACTION_NOTIFY";
+
+	private static final String INTENT_ACTION_ALARM = CLASS + ".ACTION_ALARM";
 
 	private static final String INTENT_EXTRA_ROUTE_STOP = CLASS + ".ROUTE_STOP";
 
@@ -88,13 +88,10 @@ public class NotificationService extends Service {
 		@Override
 		public void run(StopPrediction prediction) {
 			setCurrentPredictions(prediction);
-			mPredictionsUpdater.scheduleUpdate();
 		}
 	};
 
 	private StopPrediction mCurrentRouteStopPrediction;
-
-	private Handler mHandler;
 
 	private int mNotificationId = 1;
 
@@ -107,28 +104,7 @@ public class NotificationService extends Service {
 
 	private IPredictionUpdateStrategy mPredictionUpdateStrategy = new AccuratePredictionUpdates();
 
-	private Callback<IPredictions> mScheduledPredictionsUpdater = new Callback<IPredictions>() {
-		@Override
-		public void run(IPredictions predictions) {
-			if (null != mCurrentRouteStopPrediction)
-				predictions.updateRouteStopPredictions(
-						mCurrentRouteStopPrediction.routestop,
-						mPredictionUpdateStrategy);
-		}
-	};
-
-	private final PredictionsUpdater mPredictionsUpdater = new PredictionsUpdater(
-			new Task<DateTime>() {
-				@Override
-				public DateTime get() {
-					return mPredictionUpdateStrategy.nextPredictionUpdate(mCurrentRouteStopPrediction);
-				}
-			}, new Runnable() {
-				@Override
-				public void run() {
-					mPredictionsService.schedule(mScheduledPredictionsUpdater);
-				}
-			});
+	private PendingIntent mAlarmPendingIntent;
 
 	private void buildNotification() {
 		mBuilder.setSmallIcon(R.drawable.ic_launcher)
@@ -158,13 +134,16 @@ public class NotificationService extends Service {
 				showRouteStop((RouteStop) intent
 						.getSerializableExtra(INTENT_EXTRA_ROUTE_STOP));
 			} else {
-				Log.e(this,
+				Log.e(CLASS,
 						"Got a handleIntent call with the action notify, but not the correct extra");
 			}
 		} else if (INTENT_ACTION_DELETE.equals(intent.getAction())) {
-			Log.v(this,
-					"Stopping notifcation service");
+			Log.v(this, "Stopping notifcation service");
 			stopSelf();
+		} else if (INTENT_ACTION_ALARM.equals(intent.getAction())) {
+			onAlarm();
+		} else {
+			Log.i(CLASS, "Got a handleIntent call with an unknown action");
 		}
 	}
 
@@ -182,8 +161,6 @@ public class NotificationService extends Service {
 		mPredictionsService.bind(this);
 
 		mBuilder = new NotificationCompat.Builder(this);
-
-		mHandler = new Handler();
 
 		mNotificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
 	}
@@ -210,6 +187,40 @@ public class NotificationService extends Service {
 		mCurrentRouteStopPrediction = prediction;
 		Log.v(this, "setCurrentPredictions");
 		updateNotification(prediction);
+		updateAlarm(prediction);
+	}
+
+	private void updateAlarm(StopPrediction prediction) {
+		final AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+
+		if (mAlarmPendingIntent == null) {
+			mAlarmPendingIntent = PendingIntent.getService(this, 0, new Intent(
+					this, NotificationService.class)
+					.setAction(INTENT_ACTION_ALARM),
+					PendingIntent.FLAG_CANCEL_CURRENT);
+		}
+
+		long triggerAtMillis = calculateAlarmWakeup();
+		
+		Log.v(this, "Scheduling alarm in " + triggerAtMillis/1000 + "s");
+
+		am.set(AlarmManager.RTC_WAKEUP, triggerAtMillis, mAlarmPendingIntent);
+	}
+
+	private long calculateAlarmWakeup() {
+		return mCurrentRouteStopPrediction.predictions.get(0).arrival.getTime();
+	}
+
+	private void onAlarm() {
+		Log.i(CLASS, "onAlarm");
+		mNotificationManager.notify(
+				mNotificationId,
+				updateNotificationBuilder(mCurrentRouteStopPrediction)
+						.setDefaults(
+								Notification.DEFAULT_VIBRATE
+										| Notification.DEFAULT_LIGHTS)
+						.getNotification());
+		updateAlarm(mCurrentRouteStopPrediction);
 	}
 
 	private void showRouteStop(final RouteStop rs) {
@@ -226,12 +237,11 @@ public class NotificationService extends Service {
 						predictions.removeRouteStopListener(rs,
 								mCallbackPredictionUpdate);
 					predictions.addRouteStopListener(rs,
-							mCallbackPredictionUpdate);
+							mCallbackPredictionUpdate,
+							mPredictionUpdateStrategy);
 				}
 			}
 		});
-
-		mPredictionsUpdater.start(mHandler);
 	}
 
 	private void showRouteStopWithInitialPrediction(final StopPrediction p) {
@@ -240,6 +250,13 @@ public class NotificationService extends Service {
 	}
 
 	private void updateNotification(StopPrediction p) {
+		mNotificationManager.notify(mNotificationId,
+				updateNotificationBuilder(p).getNotification());
+
+		mNotificationInProgress = true;
+	}
+
+	private Builder updateNotificationBuilder(StopPrediction p) {
 		if (!mNotificationInProgress) {
 			buildNotification();
 			mBuilder.setTicker("");
@@ -259,18 +276,19 @@ public class NotificationService extends Service {
 		CharSequence text = TextFormat.toString(p.stop);
 
 		// large text at the right-hand side of the notification.
-		CharSequence info = TextFormat.toString(p.predictions.get(0));
+		// CharSequence info = TextFormat.toString(p.predictions.get(0));
+		CharSequence infotext = "";
+		if (p.predictions.size() > 1) {
+			infotext = "Next " + TextFormat.toString(p.predictions.get(1));
+		}
 
 		CharSequence tickerText = TextFormat.toString(p.predictions.get(0))
 				+ " till " + TextFormat.toString(p.route) + " at "
 				+ TextFormat.toString(p.stop);
 
 		mBuilder.setContentTitle(title).setContentText(text)
-				.setWhen(when).setTicker(tickerText);
+				.setContentInfo(infotext).setWhen(when).setTicker(tickerText);
 
-		mNotificationManager
-				.notify(mNotificationId, mBuilder.getNotification());
-
-		mNotificationInProgress = true;
+		return mBuilder.setDefaults(0);
 	}
 }
