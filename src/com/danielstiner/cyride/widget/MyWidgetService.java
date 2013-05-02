@@ -5,6 +5,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+import org.joda.time.DateTime;
+
 import android.annotation.TargetApi;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
@@ -60,7 +62,7 @@ class MyRemoteViewsFactory implements
 							public int compare(StopPrediction lhs,
 									StopPrediction rhs) {
 								return LocationUtil.compareDistance(lhs.stop,
-										rhs.stop, p.near);
+										rhs.stop, p.latitude, p.longitude);
 							}
 						});
 			}
@@ -83,7 +85,11 @@ class MyRemoteViewsFactory implements
 
 		long triggerAtMillis = calculateAlarmWakeup(p);
 
-		am.set(AlarmManager.RTC_WAKEUP, triggerAtMillis, mAlarmPendingIntent);
+		Log.v(this, "Scheduling widget update in "
+				+ (triggerAtMillis - DateTime.now().getMillis()) / 1000 + "s");
+
+		am.cancel(mAlarmPendingIntent);
+		am.set(AlarmManager.RTC, triggerAtMillis, mAlarmPendingIntent);
 	}
 
 	private long calculateAlarmWakeup(NearbyStopPredictions p) {
@@ -176,7 +182,7 @@ public class MyWidgetService extends android.widget.RemoteViewsService {
 				MyWidgetService.class).setAction(INTENT_ACTION_UPDATE_NEARBY),
 				PendingIntent.FLAG_CANCEL_CURRENT);
 	}
-	
+
 	private void handleIntent(Intent intent) {
 
 		if (intent == null)
