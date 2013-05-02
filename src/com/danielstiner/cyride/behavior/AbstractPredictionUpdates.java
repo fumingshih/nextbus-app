@@ -10,12 +10,18 @@ import com.danielstiner.nextbus.NextBusAPI.StopPrediction;
 public abstract class AbstractPredictionUpdates implements
 		IPredictionUpdateStrategy {
 
+	private int backoff_factor = 0;
+	private static final int BACKOFF_MULTIPLIER = 1;
+
 	@Override
 	public DateTime nextPredictionUpdate(NearbyStopPredictions predictions) {
 
 		if (predictions == null) {
-			return DateTime.now();
+			int factor = backoff_factor;
+			backoff_factor *= factor + 1;
+			return new DateTime().plusSeconds(factor * BACKOFF_MULTIPLIER);
 		} else {
+			backoff_factor /= 2;
 			DateTime updateAt = DateTime.now().plus(
 					Constants.LONGEST_UPDATE_TIME);
 			if (predictions != null) {

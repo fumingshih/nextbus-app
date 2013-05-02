@@ -11,21 +11,16 @@ public class ConservativePredictionUpdates extends AbstractPredictionUpdates
 
 	@Override
 	public DateTime nextPredictionUpdate(StopPrediction prediction) {
-
-		DateTime earliestUpdate = new DateTime(prediction.timestamp)
-				.plus(Constants.SHORTEST_UPDATE_TIME);
-
-		if (prediction.predictions.size() == 0) {
-			return DateUtil.later(new DateTime(), earliestUpdate);
+		if (prediction.predictions.size() < Constants.MAX_PREDICTION_COUNT) {
+			return new DateTime(prediction.timestamp)
+					.plus(Constants.DEFAULT_CONSERVATIVE_UPDATE_TIME);
 		} else {
 			DateTime lastArrival = new DateTime(
 					prediction.predictions.get(prediction.predictions.size() - 1).arrival);
-			if (lastArrival.isBeforeNow()) {
-				return DateUtil.later(lastArrival, earliestUpdate);
-			}
+			DateTime earliestUpdate = new DateTime(prediction.timestamp)
+			.plus(Constants.SHORTEST_CONSERVATIVE_UPDATE_TIME);
+			return DateUtil.later(lastArrival, earliestUpdate);
 		}
-
-		return earliestUpdate;
 	}
 
 }
