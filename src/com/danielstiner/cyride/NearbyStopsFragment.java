@@ -52,7 +52,7 @@ public class NearbyStopsFragment extends ListFragment {
 				@Override
 				public int compare(StopPrediction lhs, StopPrediction rhs) {
 					return LocationUtil.compareDistance(lhs.stop, rhs.stop,
-							prediction.near);
+							prediction.latitude, prediction.longitude);
 				}
 			});
 		}

@@ -1,5 +1,6 @@
 package com.danielstiner.cyride.service;
 
+import java.io.Serializable;
 import java.util.Collection;
 
 import android.location.Location;
@@ -10,14 +11,20 @@ import com.danielstiner.nextbus.NextBusAPI.RouteStop;
 import com.danielstiner.nextbus.NextBusAPI.StopPrediction;
 
 public interface IPredictions {
-	
-	public class NearbyStopPredictions {
-		public NearbyStopPredictions(Collection<StopPrediction> predictions, Location near) {
+
+	public class NearbyStopPredictions implements Serializable {
+		private static final long serialVersionUID = -5795359665009295231L;
+
+		public NearbyStopPredictions(Collection<StopPrediction> predictions,
+				double latitude, double longitude) {
 			this.predictions = predictions;
-			this.near = near;
+			this.latitude = latitude;
+			this.longitude = longitude;
 		}
+
 		public final Collection<StopPrediction> predictions;
-		public final Location near;
+		public final double latitude;
+		public final double longitude;
 	}
 
 	public interface NearbyStopPredictionsListener extends
@@ -25,10 +32,12 @@ public interface IPredictions {
 	}
 
 	public abstract void addNearbyStopPredictionsByRouteListener(
-			NearbyStopPredictionsListener predictionsListener, IPredictionUpdateStrategy predictionUpdateStrategy);
+			NearbyStopPredictionsListener predictionsListener,
+			IPredictionUpdateStrategy predictionUpdateStrategy);
 
 	public abstract void addRouteStopListener(RouteStop rs,
-			Callback<StopPrediction> predictionListener, IPredictionUpdateStrategy updateStrategy);
+			Callback<StopPrediction> predictionListener,
+			IPredictionUpdateStrategy updateStrategy);
 
 	public abstract NearbyStopPredictions getLatestNearbyStopPredictions(
 			IPredictionUpdateStrategy mPredictionUpdateStrategy);
@@ -43,6 +52,6 @@ public interface IPredictions {
 
 	void updateRouteStopPredictions(RouteStop rs,
 			IPredictionUpdateStrategy updateStrategy);
-	
+
 	Location getLastKnownLocation();
 }

@@ -239,10 +239,9 @@ public class PredictionsService extends android.app.Service implements
 						allStops, location);
 
 				// TODO: Maybe only update stops that need updating
-				return mCache
-						.setNearbyPredictions(new NearbyStopPredictions(
-								mNextBusAPI.getStopPredictions(nearestStops),
-								location));
+				return mCache.setNearbyPredictions(new NearbyStopPredictions(
+						mNextBusAPI.getStopPredictions(nearestStops), location
+								.getLatitude(), location.getLongitude()));
 
 			} catch (MalformedURLException e) {
 				Log.w(this, "UpdateNearbyTask.doInBackground objectIn.close", e);
@@ -252,7 +251,8 @@ public class PredictionsService extends android.app.Service implements
 
 		}
 
-		return new NearbyStopPredictions(new LinkedList<StopPrediction>(), null);
+		return new NearbyStopPredictions(new LinkedList<StopPrediction>(), 0.0,
+				0.0);
 	}
 
 	@Override
