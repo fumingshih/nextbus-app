@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <string name="app_name">Cyride</string>
+    <string name="app_name">Trans.it</string>
     <string name="action_settings">Settings</string>
     <string name="hello_world">Hello world!</string>
     <string name="nearby_ticker">Nearby</string>
@@ -12,7 +12,7 @@
     <string name="title_section1">Nearby</string>
     <string name="title_section2">Favorites</string>
     <string name="title_section3">Schedule</string>
-    <string name="crash_toast_text">NextBusApp Crashed! Please submit a crash report via email so we can fix this issue.</string>
+    <string name="crash_toast_text">Trans.it Crashed! Please submit a crash report via email so we can fix this issue.</string>
     <string name="crash_dialog_text">App crashed, please report bug to developer.</string>
     <string name="crash_dialog_title">Error</string>
     <string name="crash_dialog_comment_prompt">What might have caused the crash?</string>

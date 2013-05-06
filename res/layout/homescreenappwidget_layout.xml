@@ -9,7 +9,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:textAppearance="@android:style/TextAppearance.Medium"
-        android:text="CyRide"/>
+        android:text="@string/app_name"/>
     <ListView 
         android:id="@+id/widget_listview"
         android:layout_width="match_parent"
