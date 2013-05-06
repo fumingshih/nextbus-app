@@ -2,6 +2,7 @@ package com.danielstiner.cyride;
 
 import java.util.Locale;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
@@ -17,6 +18,8 @@ import com.actionbarsherlock.app.ActionBar;
 import com.actionbarsherlock.app.ActionBar.Tab;
 import com.actionbarsherlock.app.ActionBar.TabListener;
 import com.actionbarsherlock.app.SherlockFragmentActivity;
+import com.actionbarsherlock.view.Menu;
+import com.actionbarsherlock.view.MenuItem;
 
 import de.akquinet.android.androlog.Log;
 
@@ -172,5 +175,21 @@ public class MainActivity extends SherlockFragmentActivity {
 					.setText(mSectionsPagerAdapter.getPageTitle(i))
 					.setTabListener(mTabListener));
 		}
+	}
+
+	@Override
+	public boolean onCreateOptionsMenu(Menu menu) {
+		getSupportMenuInflater().inflate(R.menu.main, menu);
+		return true;
+	}
+
+	@Override
+	public boolean onOptionsItemSelected(MenuItem item) {
+		switch (item.getItemId()) {
+		case R.id.action_settings:
+			startActivity(new Intent(this, Settings.class));
+			break;
+		}
+		return super.onOptionsItemSelected(item);
 	}
 }
