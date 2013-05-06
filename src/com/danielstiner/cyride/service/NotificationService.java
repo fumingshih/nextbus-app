@@ -10,6 +10,7 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.app.NotificationCompat.Builder;
 
@@ -30,7 +31,7 @@ public class NotificationService extends IntentService {
 	public NotificationService() {
 		super(NAME);
 	}
-	
+
 	private final static String NAME = "Notifications";
 
 	private final static String CLASS = "com.danielstiner.cyride.service";
@@ -53,6 +54,12 @@ public class NotificationService extends IntentService {
 		Intent fillInIntent = new Intent();
 		fillInIntent.putExtras(extras);
 		return fillInIntent;
+	}
+
+	static void onAlarm(Context context, Intent intent) {
+		Log.d(CLASS, "Alarm");
+		intent.setClass(context, NotificationService.class);
+		context.startService(intent);
 	}
 
 	public static PendingIntent getTemplatePendingIntent(Context context,
@@ -124,6 +131,7 @@ public class NotificationService extends IntentService {
 	}
 
 	public void onHandleIntent(Intent intent) {
+		Log.v(this, "Intent " + intent.getAction());
 		if (INTENT_ACTION_NOTIFY.equals(intent.getAction())) {
 			if (intent.hasExtra(INTENT_EXTRA_ROUTE_STOP_PREDICTION)) {
 				setRouteStopWithInitialPrediction((StopPrediction) intent
@@ -139,7 +147,8 @@ public class NotificationService extends IntentService {
 			Log.v(this, "Stopping notifcation service");
 			stopSelf();
 		} else if (INTENT_ACTION_ALARM.equals(intent.getAction())) {
-			onAlarm();
+			onAlarm((StopPrediction) intent
+					.getSerializableExtra(INTENT_EXTRA_ROUTE_STOP_PREDICTION));
 		} else {
 			Log.i(CLASS, "Got a handleIntent call with an unknown action");
 		}
@@ -167,17 +176,6 @@ public class NotificationService extends IntentService {
 		mPredictionsService.unbind(this);
 	}
 
-//	@Override
-//	public int onStartCommand(Intent intent, int flags, int startId) {
-//		super.onStartCommand(intent, flags, startId);
-//		
-//		Log.v(this, "Got intent: " + intent.getAction());
-//
-//		onHandleIntent(intent);
-//
-//		return START_NOT_STICKY;
-//	}
-
 	private void updateCurrentPredictions(StopPrediction prediction) {
 		mCurrentRouteStopPrediction = prediction;
 		Log.v(this, "setCurrentPredictions");
@@ -186,6 +184,7 @@ public class NotificationService extends IntentService {
 	}
 
 	private void cancelAlarm() {
+		Log.v(CLASS, "Cancelling notification alarm");
 		final AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
 		am.cancel(mAlarmPendingIntent);
 	}
@@ -193,33 +192,46 @@ public class NotificationService extends IntentService {
 	private void updateAlarm(StopPrediction prediction) {
 		final AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
 
-		if (mAlarmPendingIntent == null) {
-			mAlarmPendingIntent = PendingIntent.getService(this, 0, new Intent(
-					this, NotificationService.class)
-					.setAction(INTENT_ACTION_ALARM),
-					PendingIntent.FLAG_UPDATE_CURRENT);
-		} else {
+		if (mAlarmPendingIntent != null)
 			am.cancel(mAlarmPendingIntent);
-		}
 
-		DateTime triggerAt = calculateNextAlarmWakeup();
+		mAlarmPendingIntent = PendingIntent.getBroadcast(
+				this,
+				0,
+				new Intent(this, NotificationServiceAlarmReceiver.class)
+						.setAction(INTENT_ACTION_ALARM).putExtra(
+								INTENT_EXTRA_ROUTE_STOP_PREDICTION,
+								mCurrentRouteStopPrediction),
+				PendingIntent.FLAG_UPDATE_CURRENT);
+
+		DateTime triggerAt = calculateNextAlarmWakeup(prediction);
+
+		if (triggerAt == null)
+			return;
+
+		long inMillis = triggerAt.getMillis() - DateTime.now().getMillis();
 
 		if (triggerAt.isBeforeNow()) {
 			Log.v(this, "Alarm has past");
 		} else {
-			Log.v(this,
-					"Scheduling notification alarm in "
-							+ (triggerAt.getMillis() - DateTime.now()
-									.getMillis()) / 1000 + "s");
+			Log.v(this, "Scheduling notification alarm in " + inMillis / 1000
+					+ "s");
 
-			am.set(AlarmManager.RTC_WAKEUP, triggerAt.getMillis(),
+			am.set(AlarmManager.ELAPSED_REALTIME_WAKEUP,
+					SystemClock.elapsedRealtime() + inMillis,
 					mAlarmPendingIntent);
 		}
 	}
 
-	private DateTime calculateNextAlarmWakeup() {
-		DateTime dt = new DateTime(
-				mCurrentRouteStopPrediction.predictions.get(0).arrival);
+	private DateTime calculateNextAlarmWakeup(StopPrediction p) {
+
+		if (p == null || p.predictions.isEmpty()) {
+			Log.v(CLASS, "No predictions to calculate next alarm from");
+			return null;
+		}
+
+		DateTime dt = new DateTime(p.predictions.get(0).arrival).plusMillis(1);
+
 		DateTime dt5min = dt.minusMinutes(5);
 		DateTime dt2min = dt.minusMinutes(2);
 
@@ -231,26 +243,28 @@ public class NotificationService extends IntentService {
 			return dt;
 	}
 
-	private void onAlarm() {
+	private void onAlarm(StopPrediction stopPrediction) {
 		Log.i(CLASS, "onAlarm");
+		if (mCurrentRouteStopPrediction == null)
+			mCurrentRouteStopPrediction = stopPrediction;
 		mNotificationManager.notify(
 				mNotificationId,
-				updateNotificationBuilder(mCurrentRouteStopPrediction)
+				updateNotificationBuilder(stopPrediction)
 						.setOnlyAlertOnce(false)
 						.setDefaults(
 								Notification.DEFAULT_VIBRATE
 										| Notification.DEFAULT_LIGHTS)
 						.getNotification());
-		updateAlarm(mCurrentRouteStopPrediction);
+		updateAlarm(stopPrediction);
 	}
 
 	private void setRouteStop(final RouteStop rs) {
 		final RouteStop previous = (null == mCurrentRouteStopPrediction) ? null
 				: mCurrentRouteStopPrediction.routestop;
 
-		Log.v(this, "showRouteStop " + rs);
+		Log.v(this, "setRouteStop " + rs);
 
-		cancelAlarm();
+		cancelAlarmIfDifferent(rs);
 
 		mPredictionsService.schedule(new Callback<IPredictions>() {
 			@Override
@@ -265,6 +279,13 @@ public class NotificationService extends IntentService {
 				}
 			}
 		});
+	}
+
+	private void cancelAlarmIfDifferent(RouteStop rs) {
+		if (mCurrentRouteStopPrediction == null
+				|| !rs.route.equals(mCurrentRouteStopPrediction.route)
+				|| !rs.stop.equals(mCurrentRouteStopPrediction.stop))
+			cancelAlarm();
 	}
 
 	private void setRouteStopWithInitialPrediction(final StopPrediction p) {
@@ -287,6 +308,7 @@ public class NotificationService extends IntentService {
 
 		if (p == null || p.predictions.isEmpty()) {
 			// TODO
+			return mBuilder;
 		}
 
 		// Copy when of first prediction
