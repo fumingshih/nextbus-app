@@ -13,7 +13,6 @@ import org.joda.time.DateTime;
 import android.content.Context;
 import android.content.Intent;
 import android.location.Location;
-import android.location.LocationManager;
 import android.os.AsyncTask;
 import android.os.Binder;
 import android.os.Handler;
@@ -27,8 +26,9 @@ import com.danielstiner.cyride.util.CallbackManager;
 import com.danielstiner.cyride.util.Constants;
 import com.danielstiner.cyride.util.DateUtil;
 import com.danielstiner.cyride.util.Functor1;
-import com.danielstiner.cyride.util.LocationUtil;
+import com.danielstiner.cyride.util.LocationTracker;
 import com.danielstiner.cyride.util.PredictionsUpdater;
+import com.danielstiner.cyride.util.Preferences;
 import com.danielstiner.cyride.util.Task;
 import com.danielstiner.cyride.widget.MyWidgetService;
 import com.danielstiner.nextbus.NextBusAPI;
@@ -92,6 +92,10 @@ public class PredictionsService extends android.app.Service implements
 		}
 	}
 
+	private static final String CLASS = "com.danielstiner.cyride.service.PredictionsService";
+
+	private static final String ACTION_REFRESH = CLASS + ".ACTION_REFRESH";
+
 	/**
 	 * Call at most once per context
 	 * 
@@ -118,6 +122,8 @@ public class PredictionsService extends android.app.Service implements
 	private CachePolicy mCachePolicy;
 
 	private Handler mHandler;
+
+	private LocationTracker lt = new LocationTracker();
 
 	private CallbackManager<NearbyStopPredictions> NearbyStopPredictionsByRouteListeners = new CallbackManager<NearbyStopPredictions>();
 
@@ -220,8 +226,7 @@ public class PredictionsService extends android.app.Service implements
 
 	private NearbyStopPredictions getLatestNearbyStopPredictions() {
 
-		LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-		Location location = LocationUtil.getBestCurrentLocation(lm);
+		Location location = lt.getBestCurrentLocation();
 
 		if (null != location) {
 
@@ -266,9 +271,7 @@ public class PredictionsService extends android.app.Service implements
 
 		Log.init(this);
 
-		mNextBusAPI = new NextBusAPI(Constants.AGENCY);
-
-		mCache = Cache.loadCache(Constants.AGENCY, this);
+		initializeAgencyDependent();
 
 		mHandler = new Handler();
 
@@ -283,7 +286,23 @@ public class PredictionsService extends android.app.Service implements
 			}
 		};
 
+		lt.start(this, new Callback<Location>() {
+			@Override
+			public void run(Location l) {
+				mRouteStopUpdateScheduler.schedule(mHandler);
+				mNearbyUpdateScheduler.schedule(mHandler);
+			}
+		});
+
 		Log.v(this, "Prediction service started");
+	}
+
+	private void initializeAgencyDependent() {
+		String agency = Preferences.getAgency(this);
+
+		mNextBusAPI = new NextBusAPI(agency);
+
+		mCache = Cache.loadCache(agency, this);
 	}
 
 	@Override
@@ -291,12 +310,18 @@ public class PredictionsService extends android.app.Service implements
 		super.onDestroy();
 		Log.v(this, "Prediction service shutting down");
 		mNearbyUpdateScheduler.stop();
+		mRouteStopUpdateScheduler.stop();
+		lt.stop();
 		mCache.save(this);
 	}
 
 	@Override
 	public int onStartCommand(Intent intent, int flags, int startId) {
 		super.onStartCommand(intent, flags, startId);
+
+		if (ACTION_REFRESH.equals(intent.getAction())) {
+			initializeAgencyDependent();
+		}
 
 		return START_NOT_STICKY;
 	}
@@ -345,9 +370,11 @@ public class PredictionsService extends android.app.Service implements
 
 	@Override
 	public Location getLastKnownLocation() {
-		// TODO Base on a constantly updated best known location
-		LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-		Location location = LocationUtil.getBestCurrentLocation(lm);
-		return location;
+		return lt.getBestCurrentLocation();
+	}
+
+	public static void refresh(Context c) {
+		c.startService(new Intent(c, PredictionsService.class)
+				.setAction(ACTION_REFRESH));
 	}
 }

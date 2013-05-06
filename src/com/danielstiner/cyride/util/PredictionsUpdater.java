@@ -31,9 +31,11 @@ public class PredictionsUpdater {
 
 		this.nextScheduledUpdate = updateAt;
 
-		long delayMillis = Math.max(0, updateAt.getMillis() - DateTime.now().getMillis());
+		long delayMillis = Math.max(0, updateAt.getMillis()
+				- DateTime.now().getMillis());
 
-		Log.v(this, "Scheduling predictions update in: " + delayMillis/1000 + "s");
+		Log.v(this, "Scheduling predictions update in: " + delayMillis / 1000
+				+ "s");
 
 		if (null != nextScheduledUpdate)
 			stop();
@@ -46,7 +48,8 @@ public class PredictionsUpdater {
 	}
 
 	public void stop() {
-		mHandler.removeCallbacks(mTask);
+		if (null != mHandler)
+			mHandler.removeCallbacks(mTask);
 		this.nextScheduledUpdate = null;
 	}
 }
